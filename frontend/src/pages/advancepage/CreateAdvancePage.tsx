@@ -41,7 +41,7 @@ export const CreateAdvancePage: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Auto-fill bank account from user profile
+  // Tự động điền tài khoản ngân hàng từ thông tin tài khoản người dùng
   useEffect(() => {
     if (user?.bankAccount) {
       setBankAccount({
@@ -85,7 +85,7 @@ export const CreateAdvancePage: React.FC = () => {
     e.preventDefault();
     setError(null);
 
-    // Validation
+    // Kiểm tra tính hợp lệ của dữ liệu nhập (Validation)
     if (!bankAccount.bankName.trim() || !bankAccount.accountNumber.trim()) {
       setError('Vui lòng điền đầy đủ Tên ngân hàng và Số tài khoản nhận tiền');
       return;
@@ -123,7 +123,7 @@ export const CreateAdvancePage: React.FC = () => {
 
   return (
     <div>
-      {/* Header */}
+      {/* Tiêu đề trang */}
       <div style={{ marginBottom: '1.75rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
         <Link to="/advance" className="btn btn-ghost btn-sm" style={{ padding: '0.4rem' }}>
           <ArrowLeft size={18} />
@@ -157,7 +157,7 @@ export const CreateAdvancePage: React.FC = () => {
       )}
 
       <form onSubmit={handleSubmit}>
-        {/* Bank Account Details Card */}
+        {/* Thẻ thông tin tài khoản ngân hàng thụ hưởng */}
         <div className="card" style={{ marginBottom: '1.5rem', padding: '1.5rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
             <CreditCard size={18} color="var(--accent-cyan)" />
@@ -206,7 +206,7 @@ export const CreateAdvancePage: React.FC = () => {
           </div>
         </div>
 
-        {/* Items Table Card */}
+        {/* Thẻ bảng danh mục mục đích tạm ứng */}
         <div className="card" style={{ marginBottom: '1.5rem', padding: '1.5rem' }}>
           <div
             style={{
@@ -282,7 +282,7 @@ export const CreateAdvancePage: React.FC = () => {
           </div>
         </div>
 
-        {/* Workflow Summary & Total */}
+        {/* Khối tổng kết quy trình và tổng tiền */}
         <div
           style={{
             display: 'grid',
@@ -291,7 +291,7 @@ export const CreateAdvancePage: React.FC = () => {
             marginBottom: '2rem',
           }}
         >
-          {/* Guide */}
+          {/* Hướng dẫn quy trình */}
           <div className="card" style={{ padding: '1.25rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
               <HelpCircle size={18} color="var(--accent-cyan)" />
@@ -303,7 +303,7 @@ export const CreateAdvancePage: React.FC = () => {
             </div>
           </div>
 
-          {/* Grand total */}
+          {/* Tổng số tiền tạm ứng */}
           <div
             className="card"
             style={{

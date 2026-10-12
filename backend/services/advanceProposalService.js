@@ -4,12 +4,12 @@ const User = require('../models/User');
 class AdvanceProposalService {
 
   /**
-   * Build approval flow based on creator role:
+   * Thiết lập luồng phê duyệt dựa trên vai trò của người tạo:
    * 
-   * Flow nhân viên: giam_doc → chu_tich → ke_toan (duyệt & giải ngân) → hoàn tạm ứng → ke_toan xác nhận
-   * Flow trưởng phòng: giam_doc → chu_tich → ke_toan (duyệt & giải ngân) → hoàn tạm ứng → ke_toan xác nhận
-   * Flow giám đốc: (bỏ qua giam_doc) → chu_tich → ke_toan (duyệt & giải ngân) → hoàn tạm ứng → ke_toan xác nhận
-   * Flow chủ tịch: (bỏ qua giam_doc & chu_tich) → ke_toan (duyệt & giải ngân) → hoàn tạm ứng → ke_toan xác nhận
+   * Luồng nhân viên: giam_doc → chu_tich → ke_toan (duyệt & giải ngân) → hoàn tạm ứng → ke_toan xác nhận
+   * Luồng trưởng phòng: giam_doc → chu_tich → ke_toan (duyệt & giải ngân) → hoàn tạm ứng → ke_toan xác nhận
+   * Luồng giám đốc: (bỏ qua giam_doc) → chu_tich → ke_toan (duyệt & giải ngân) → hoàn tạm ứng → ke_toan xác nhận
+   * Luồng chủ tịch: (bỏ qua giam_doc & chu_tich) → ke_toan (duyệt & giải ngân) → hoàn tạm ứng → ke_toan xác nhận
    */
   buildApprovalFlow(creatorRole) {
     const flow = [];
@@ -18,10 +18,10 @@ class AdvanceProposalService {
       flow.push({ step: 'Giám đốc duyệt', role: 'giam_doc', status: 'pending' });
       flow.push({ step: 'Chủ tịch duyệt', role: 'chu_tich', status: 'pending' });
     } else if (creatorRole === 'giam_doc') {
-      // Skip director, go directly to chairman
+      // Giám đốc: bỏ qua duyệt cấp giám đốc, chuyển thẳng lên chủ tịch
       flow.push({ step: 'Chủ tịch duyệt', role: 'chu_tich', status: 'pending' });
     }
-    // chu_tich: skip both director and chairman
+    // Chủ tịch: bỏ qua cả giám đốc và chủ tịch, chuyển thẳng sang kế toán
 
     flow.push({ step: 'Kế toán duyệt & giải ngân', role: 'ke_toan', status: 'pending' });
     flow.push({ step: 'Hoàn tạm ứng', role: 'creator', status: 'pending' });
@@ -53,7 +53,7 @@ class AdvanceProposalService {
     const currentApprovalRole = this.getCurrentApprovalRole(approvalFlow);
     const status = this.getStatusFromRole(currentApprovalRole);
 
-    // Use creator's bank account or provided bank account
+    // Sử dụng thông tin tài khoản ngân hàng của người tạo hoặc tài khoản được chỉ định
     const bankAccount = data.bankAccount || creator.bankAccount;
 
     const proposal = await AdvanceProposal.create({
@@ -87,7 +87,7 @@ class AdvanceProposalService {
         { 'approvalFlow.role': 'ke_toan', 'approvalFlow.status': { $in: ['approved', 'pending'] } },
       ];
     }
-    // giam_doc and chu_tich can see all
+    // Giám đốc và Chủ tịch có thể xem toàn bộ đề xuất
 
     return await AdvanceProposal.find(query)
       .populate('creator', 'fullName email role')
@@ -130,7 +130,7 @@ class AdvanceProposalService {
     currentStep.comment = comment || '';
     currentStep.date = new Date();
 
-    // Find next pending step
+    // Tìm bước duyệt tiếp theo đang chờ xử lý
     const nextPendingStep = proposal.approvalFlow.find(
       (step, idx) => idx > currentStepIndex && step.status === 'pending'
     );
@@ -183,7 +183,7 @@ class AdvanceProposalService {
       accountingStep.date = new Date();
     }
 
-    // Add disbursement
+    // Ghi nhận lần giải ngân chi tiền
     const disbursementAmount = amount || proposal.totalAmount;
     proposal.disbursements.push({
       amount: disbursementAmount,
@@ -212,7 +212,7 @@ class AdvanceProposalService {
       throw new Error('Chỉ người tạo đề xuất mới có thể hoàn tạm ứng');
     }
 
-    // Update settlement info
+    // Cập nhật thông tin quyết toán hoàn ứng
     proposal.settlement = {
       type: settlementData.type, // 'surplus', 'deficit', 'exact'
       amount: settlementData.amount || 0,
@@ -221,7 +221,7 @@ class AdvanceProposalService {
       submittedAt: new Date(),
     };
 
-    // Mark creator step as approved
+    // Đánh dấu bước nộp hoàn ứng của người tạo là đã hoàn tất
     const creatorStep = proposal.approvalFlow.find(
       step => step.role === 'creator' && step.status === 'pending'
     );
@@ -246,7 +246,7 @@ class AdvanceProposalService {
       throw new Error('Đề xuất không ở trạng thái chờ xác nhận hoàn tạm ứng');
     }
 
-    // Mark final accounting step as approved
+    // Đánh dấu bước kế toán xác nhận hoàn ứng là đã duyệt
     const finalAccountingStep = proposal.approvalFlow.find(
       step => step.step === 'Kế toán xác nhận hoàn tạm ứng' && step.status === 'pending'
     );

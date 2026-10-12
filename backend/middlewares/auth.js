@@ -1,7 +1,7 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
-// Protect routes - verify JWT token
+// Middleware bảo vệ route - xác thực mã JWT token
 const protect = async (req, res, next) => {
   try {
     let token;
@@ -32,7 +32,7 @@ const protect = async (req, res, next) => {
   }
 };
 
-// Restrict to specific roles
+// Phân quyền truy cập theo vai trò người dùng
 const restrictTo = (...roles) => {
   return (req, res, next) => {
     if (!roles.includes(req.user.role)) {

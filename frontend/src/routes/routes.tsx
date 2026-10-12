@@ -9,16 +9,19 @@ import { PurchaseDetailPage } from '../pages/purchasepage/PurchaseDetailPage';
 import { AdvanceListPage } from '../pages/advancepage/AdvanceListPage';
 import { CreateAdvancePage } from '../pages/advancepage/CreateAdvancePage';
 import { AdvanceDetailPage } from '../pages/advancepage/AdvanceDetailPage';
+import { PaymentListPage } from '../pages/paymentpage/PaymentListPage';
+import { CreatePaymentPage } from '../pages/paymentpage/CreatePaymentPage';
+import { PaymentDetailPage } from '../pages/paymentpage/PaymentDetailPage';
 import { ApprovalPage } from '../pages/approvalpage/ApprovalPage';
 import { ProfilePage } from '../pages/profilepage/ProfilePage';
 
 export const AppRoutes: React.FC = () => {
   return (
     <Routes>
-      {/* Public Routes */}
+      {/* Tuyến đường công khai (Đăng nhập) */}
       <Route path="/login" element={<LoginPage />} />
 
-      {/* Protected Routes inside MainLayout */}
+      {/* Tuyến đường được bảo vệ bên trong MainLayout */}
       <Route
         path="/"
         element={
@@ -30,24 +33,29 @@ export const AppRoutes: React.FC = () => {
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<DashboardPage />} />
 
-        {/* Purchase Proposal Routes */}
+        {/* Tuyến đường đề xuất mua sắm vật tư */}
         <Route path="purchase" element={<PurchaseListPage />} />
         <Route path="purchase/create" element={<CreatePurchasePage />} />
         <Route path="purchase/:id" element={<PurchaseDetailPage />} />
 
-        {/* Advance Proposal Routes */}
+        {/* Tuyến đường đề xuất tạm ứng */}
         <Route path="advance" element={<AdvanceListPage />} />
         <Route path="advance/create" element={<CreateAdvancePage />} />
         <Route path="advance/:id" element={<AdvanceDetailPage />} />
 
-        {/* Approvals Inbox */}
+        {/* Tuyến đường đề xuất thanh toán (chỉ dành cho Kế toán) */}
+        <Route path="payment" element={<PaymentListPage />} />
+        <Route path="payment/create" element={<CreatePaymentPage />} />
+        <Route path="payment/:id" element={<PaymentDetailPage />} />
+
+        {/* Hộp thư duyệt hồ sơ */}
         <Route path="approval" element={<ApprovalPage />} />
 
-        {/* Profile & Settings */}
+        {/* Hồ sơ cá nhân & Cài đặt */}
         <Route path="profile" element={<ProfilePage />} />
       </Route>
 
-      {/* Fallback */}
+      {/* Tuyến đường mặc định khi không tìm thấy */}
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
   );

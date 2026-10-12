@@ -8,7 +8,7 @@ const api = axios.create({
 });
 
 
-// Request Interceptor: Attach JWT token from localStorage
+// Can thiệp Request: Đính kèm mã JWT token từ localStorage
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
@@ -22,14 +22,14 @@ api.interceptors.request.use(
   }
 );
 
-// Response Interceptor: Handle errors globally
+// Can thiệp Response: Xử lý lỗi toàn cục
 api.interceptors.response.use(
   (response) => {
     return response;
   },
   (error) => {
     if (error.response && error.response.status === 401) {
-      // Clear token if expired or unauthorized
+      // Xóa token nếu phiên làm việc đã hết hạn hoặc không hợp lệ
       if (!window.location.pathname.includes('/login')) {
         localStorage.removeItem('token');
         localStorage.removeItem('user');

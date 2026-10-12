@@ -49,7 +49,7 @@ export const ProfilePage: React.FC = () => {
 
   return (
     <div>
-      {/* Header */}
+      {/* Tiêu đề trang */}
       <div className="page-header">
         <div className="page-header-title">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
@@ -76,7 +76,7 @@ export const ProfilePage: React.FC = () => {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.75rem' }}>
-        {/* User Info Card */}
+        {/* Thẻ thông tin nhân sự */}
         <div className="card">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.5rem' }}>
             <Shield size={18} color="var(--primary)" />
@@ -156,7 +156,7 @@ export const ProfilePage: React.FC = () => {
           </div>
         </div>
 
-        {/* Bank Account Update Form Card */}
+        {/* Thẻ cập nhật số tài khoản ngân hàng */}
         <div className="card">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.25rem' }}>
             <CreditCard size={18} color="var(--accent-cyan)" />

@@ -31,13 +31,22 @@ export const purchaseProposalService = {
     return res.data.data;
   },
 
+  getAIPricingSuggestions: async (id: string) => {
+    const res = await api.get<{ success: boolean; data: any }>(
+      `/purchase-proposals/${id}/ai-pricing`
+    );
+    return res.data.data;
+  },
+
   submitProcurement: async (
     id: string,
-    items: Array<{ _id?: string; donGiaThucTe: number }>
+    items: Array<{ _id?: string; donGiaThucTe: number; nhaCungCap?: string; ghiChuNhaCungCap?: string }>,
+    pricingMethod?: 'ai' | 'manual',
+    quotationAttachments?: any[]
   ): Promise<PurchaseProposal> => {
     const res = await api.put<{ success: boolean; data: PurchaseProposal }>(
       `/purchase-proposals/${id}/procurement`,
-      { items }
+      { items, pricingMethod, quotationAttachments }
     );
     return res.data.data;
   },
@@ -54,14 +63,6 @@ export const purchaseProposalService = {
     const res = await api.put<{ success: boolean; data: PurchaseProposal }>(
       `/purchase-proposals/${id}/final-approve`,
       { comment }
-    );
-    return res.data.data;
-  },
-
-  disburse: async (id: string, amount: number, note?: string): Promise<PurchaseProposal> => {
-    const res = await api.put<{ success: boolean; data: PurchaseProposal }>(
-      `/purchase-proposals/${id}/disburse`,
-      { amount, note }
     );
     return res.data.data;
   },

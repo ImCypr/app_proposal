@@ -47,13 +47,13 @@ const userSchema = new mongoose.Schema({
   timestamps: true,
 });
 
-// Hash password before saving
+// Mã hóa mật khẩu trước khi lưu
 userSchema.pre('save', async function () {
   if (!this.isModified('password')) return;
   this.password = await bcrypt.hash(this.password, 12);
 });
 
-// Compare password method
+// Phương thức so sánh mật khẩu khi đăng nhập
 userSchema.methods.comparePassword = async function (candidatePassword) {
   return await bcrypt.compare(candidatePassword, this.password);
 };

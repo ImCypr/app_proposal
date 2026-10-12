@@ -5,11 +5,34 @@ export interface PurchaseItem {
   _id?: string;
   stt: number;
   tenVatTu: string;
+  yeuCauKiThuat?: string;
+  phongBanSuDung: string;
   soLuong: number;
-  donVi: string;
-  donGiaDuDoan: number;
+  donGiaDuKien: number;
   donGiaThucTe?: number | null;
-  yeuCau?: string;
+  nhaCungCap?: string;
+  ghiChuNhaCungCap?: string;
+}
+
+export interface SupplierSuggestion {
+  id: string;
+  name: string;
+  price: number;
+  rating?: number;
+  deliveryDays?: string;
+  note?: string;
+  isBestChoice?: boolean;
+}
+
+export interface ItemAISuggestion {
+  itemId: string;
+  stt: number;
+  tenVatTu: string;
+  yeuCauKiThuat?: string;
+  phongBanSuDung?: string;
+  soLuong: number;
+  donGiaDuKien: number;
+  suppliers: SupplierSuggestion[];
 }
 
 export interface ApprovalStep {
@@ -38,6 +61,8 @@ export type PurchaseProposalStatus =
   | 'procurement_completed'
   | 'accounting_review'
   | 'pending_final_approval'
+  | 'pending_payment'
+  | 'pending_payment_approval'
   | 'final_approved'
   | 'disbursing'
   | 'completed'
@@ -51,6 +76,13 @@ export interface PurchaseProposal {
   items: PurchaseItem[];
   totalEstimatedAmount: number;
   totalActualAmount?: number | null;
+  pricingMethod?: 'ai' | 'manual';
+  quotationAttachments?: Array<{
+    name: string;
+    url: string;
+    size?: number;
+    type?: string;
+  }>;
   status: PurchaseProposalStatus;
   currentApprovalRole?: string | null;
   approvalFlow: ApprovalStep[];
@@ -65,9 +97,9 @@ export interface CreatePurchaseProposalDto {
   items: Array<{
     stt: number;
     tenVatTu: string;
+    yeuCauKiThuat?: string;
+    phongBanSuDung: string;
     soLuong: number;
-    donVi: string;
-    donGiaDuDoan: number;
-    yeuCau?: string;
+    donGiaDuKien: number;
   }>;
 }

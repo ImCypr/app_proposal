@@ -4,6 +4,7 @@ import {
   LayoutDashboard,
   ShoppingCart,
   Banknote,
+  CreditCard,
   CheckCircle2,
   UserCheck,
   HelpCircle,
@@ -30,6 +31,17 @@ export const Sidebar: React.FC = () => {
       label: 'Đề Xuất Tạm Ứng',
       icon: <Banknote size={19} />,
     },
+    // Mục "Đề Xuất Thanh Toán" hiển thị cho Kế toán, Giám đốc, Chủ tịch
+    ...(user && ['ke_toan', 'giam_doc', 'chu_tich'].includes(user.role)
+      ? [
+          {
+            to: '/payment',
+            label: 'Đề Xuất Thanh Toán',
+            icon: <CreditCard size={19} />,
+            accent: '#10b981', // Màu xanh lá để phân biệt
+          },
+        ]
+      : []),
     {
       to: '/approval',
       label: 'Cần Tôi Duyệt',
@@ -104,7 +116,7 @@ export const Sidebar: React.FC = () => {
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  color: item.highlight ? 'var(--warning)' : 'inherit',
+                  color: item.highlight ? 'var(--warning)' : (item as any).accent ? (item as any).accent : 'inherit',
                 }}
               >
                 {item.icon}

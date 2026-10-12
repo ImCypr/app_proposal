@@ -19,7 +19,7 @@ export const ApprovalFlowTracker: React.FC<ApprovalFlowTrackerProps> = ({
     );
   }
 
-  // Find the first pending step to highlight as current
+  // Tìm bước đang chờ xử lý đầu tiên để làm nổi bật là bước hiện tại
   const currentPendingIndex = steps.findIndex((s) => s.status === 'pending');
 
   return (

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { purchaseProposalService } from '../../services';
 import { PurchaseProposal } from '../../models';
-import { StatusBadge } from '../../component';
+import { StatusBadge, PurchasePrintModal } from '../../component';
 import { formatCurrency, formatDate, getRoleLabel } from '../../utils/formatters';
 import {
   ShoppingCart,
@@ -12,6 +12,7 @@ import {
   Eye,
   Loader2,
   FileQuestion,
+  Printer,
 } from 'lucide-react';
 
 export const PurchaseListPage: React.FC = () => {
@@ -19,6 +20,7 @@ export const PurchaseListPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [printProposal, setPrintProposal] = useState<PurchaseProposal | null>(null);
 
   const loadProposals = async () => {
     setLoading(true);
@@ -51,14 +53,14 @@ export const PurchaseListPage: React.FC = () => {
 
   const totalProposals = proposals.length;
   const pendingCount = proposals.filter((p) =>
-    ['pending_approval', 'procurement_review', 'accounting_review', 'pending_final_approval'].includes(p.status)
+    ['pending_approval', 'procurement_review', 'accounting_review', 'pending_final_approval', 'pending_payment', 'pending_payment_approval'].includes(p.status)
   ).length;
   const disbursingCount = proposals.filter((p) => p.status === 'disbursing').length;
   const completedCount = proposals.filter((p) => p.status === 'completed').length;
 
   return (
     <div>
-      {/* Page Header */}
+      {/* Tiêu đề trang */}
       <div className="page-header">
         <div className="page-header-title">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
@@ -91,7 +93,7 @@ export const PurchaseListPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Summary KPI quick pills */}
+      {/* Thẻ thống kê nhanh */}
       <div
         style={{
           display: 'grid',
@@ -105,7 +107,7 @@ export const PurchaseListPage: React.FC = () => {
           <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#ffffff' }}>{totalProposals}</div>
         </div>
         <div className="card" style={{ padding: '1rem 1.25rem' }}>
-          <div style={{ fontSize: '0.75rem', color: 'var(--warning)' }}>Đang Chờ Duyệt</div>
+          <div style={{ fontSize: '0.75rem', color: 'var(--warning)' }}>Đang Chờ Duyệt / Chi</div>
           <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#fbbf24' }}>{pendingCount}</div>
         </div>
         <div className="card" style={{ padding: '1rem 1.25rem' }}>
@@ -118,7 +120,7 @@ export const PurchaseListPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Filter & Search Bar */}
+      {/* Thanh tìm kiếm và bộ lọc */}
       <div
         className="card"
         style={{
@@ -168,6 +170,8 @@ export const PurchaseListPage: React.FC = () => {
             <option value="procurement_review">Thu mua khảo giá</option>
             <option value="accounting_review">Kế toán xác nhận</option>
             <option value="pending_final_approval">Chờ duyệt giá chốt</option>
+            <option value="pending_payment">Chờ kế toán lập thanh toán</option>
+            <option value="pending_payment_approval">Chờ duyệt thanh toán</option>
             <option value="disbursing">Đang giải ngân</option>
             <option value="completed">Đã hoàn thành</option>
             <option value="rejected">Bị từ chối</option>
@@ -175,7 +179,7 @@ export const PurchaseListPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Proposals Table */}
+      {/* Bảng danh sách các đề xuất mua sắm */}
       {loading ? (
         <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem 0' }}>
           <Loader2 size={36} className="animate-spin" color="var(--primary)" />
@@ -264,14 +268,26 @@ export const PurchaseListPage: React.FC = () => {
                     )}
                   </td>
                   <td style={{ textAlign: 'right' }}>
-                    <Link
-                      to={`/purchase/${p._id}`}
-                      className="btn btn-secondary btn-sm"
-                      style={{ padding: '0.4rem 0.75rem' }}
-                    >
-                      <Eye size={14} />
-                      <span>Chi tiết</span>
-                    </Link>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <button
+                        type="button"
+                        onClick={() => setPrintProposal(p)}
+                        className="btn btn-ghost btn-sm"
+                        style={{ padding: '0.4rem 0.65rem', color: 'var(--accent-cyan)' }}
+                        title="Xem trước và In biểu mẫu PDF"
+                      >
+                        <Printer size={14} />
+                        <span>In PDF</span>
+                      </button>
+                      <Link
+                        to={`/purchase/${p._id}`}
+                        className="btn btn-secondary btn-sm"
+                        style={{ padding: '0.4rem 0.75rem' }}
+                      >
+                        <Eye size={14} />
+                        <span>Chi tiết</span>
+                      </Link>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -279,6 +295,13 @@ export const PurchaseListPage: React.FC = () => {
           </table>
         </div>
       )}
+
+      {/* MODAL XEM TRƯỚC VÀ IN BIỂU MẪU ĐỀ XUẤT MUA SẮM VẬT TƯ */}
+      <PurchasePrintModal
+        isOpen={!!printProposal}
+        onClose={() => setPrintProposal(null)}
+        proposal={printProposal}
+      />
     </div>
   );
 };

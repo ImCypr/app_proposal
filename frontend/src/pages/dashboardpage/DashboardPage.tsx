@@ -44,7 +44,7 @@ export const DashboardPage: React.FC = () => {
     fetchData();
   }, [user]);
 
-  // Calculate metrics
+  // Tính toán các chỉ số thống kê
   const totalPurchaseEst = purchaseProposals.reduce(
     (sum, p) => sum + (p.totalEstimatedAmount || 0),
     0
@@ -57,7 +57,7 @@ export const DashboardPage: React.FC = () => {
     purchaseProposals.reduce((sum, p) => sum + (p.totalDisbursed || 0), 0) +
     advanceProposals.reduce((sum, a) => sum + (a.totalDisbursed || 0), 0);
 
-  // Proposals pending current user's role
+  // Đề xuất đang chờ xử lý theo vai trò của người dùng hiện tại
   const pendingMyPurchases = purchaseProposals.filter(
     (p) => p.currentApprovalRole === user?.role
   );
@@ -86,7 +86,7 @@ export const DashboardPage: React.FC = () => {
 
   return (
     <div>
-      {/* Welcome Banner */}
+      {/* Khối biểu ngữ chào mừng */}
       <div
         className="card-glass"
         style={{
@@ -127,7 +127,7 @@ export const DashboardPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Action Required Banner if user has items waiting */}
+      {/* Biểu ngữ nhắc nhở hồ sơ đang chờ người dùng xử lý */}
       {totalPendingMyAction > 0 && (
         <div
           style={{
@@ -176,7 +176,7 @@ export const DashboardPage: React.FC = () => {
         </div>
       )}
 
-      {/* Statistics Cards Grid */}
+      {/* Lưới thẻ thống kê số liệu */}
       <div className="stats-grid">
         <StatCard
           title="Đề Xuất Mua Sắm"
@@ -219,9 +219,9 @@ export const DashboardPage: React.FC = () => {
         />
       </div>
 
-      {/* Two columns for recent proposals */}
+      {/* Hai cột danh sách đề xuất gần đây */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(480px, 1fr))', gap: '1.75rem' }}>
-        {/* Recent Purchase Proposals */}
+        {/* Đề xuất mua sắm gần đây */}
         <div className="card">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
@@ -277,7 +277,7 @@ export const DashboardPage: React.FC = () => {
           )}
         </div>
 
-        {/* Recent Advance Proposals */}
+        {/* Đề xuất tạm ứng gần đây */}
         <div className="card">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>

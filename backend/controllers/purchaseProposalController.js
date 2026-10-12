@@ -58,12 +58,23 @@ class PurchaseProposalController {
     }
   }
 
+  async aiSuggestPricing(req, res) {
+    try {
+      const suggestions = await purchaseProposalService.aiSuggestPricing(req.params.id);
+      res.status(200).json({ success: true, data: suggestions });
+    } catch (error) {
+      res.status(400).json({ success: false, message: error.message });
+    }
+  }
+
   async submitProcurement(req, res) {
     try {
       const proposal = await purchaseProposalService.submitProcurement(
         req.params.id,
         req.user._id,
-        req.body.items
+        req.body.items,
+        req.body.pricingMethod,
+        req.body.quotationAttachments
       );
       res.status(200).json({ success: true, data: proposal });
     } catch (error) {
@@ -90,20 +101,6 @@ class PurchaseProposalController {
         req.params.id,
         req.user._id,
         req.body.comment
-      );
-      res.status(200).json({ success: true, data: proposal });
-    } catch (error) {
-      res.status(400).json({ success: false, message: error.message });
-    }
-  }
-
-  async disburse(req, res) {
-    try {
-      const proposal = await purchaseProposalService.disburse(
-        req.params.id,
-        req.user._id,
-        req.body.amount,
-        req.body.note
       );
       res.status(200).json({ success: true, data: proposal });
     } catch (error) {

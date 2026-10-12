@@ -24,6 +24,71 @@ export const formatDate = (dateString: string | null | undefined): string => {
   }
 };
 
+export const formatDateToVietnameseLong = (dateString: string | null | undefined): string => {
+  if (!dateString) return 'Ngày ..... tháng ..... năm 20....';
+  try {
+    const d = new Date(dateString);
+    if (isNaN(d.getTime())) return 'Ngày ..... tháng ..... năm 20....';
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return `Ngày ${day} tháng ${month} năm ${year}`;
+  } catch {
+    return 'Ngày ..... tháng ..... năm 20....';
+  }
+};
+
+export const numberToVietnameseWords = (num: number | null | undefined): string => {
+  if (!num || isNaN(num) || num <= 0) return 'Không đồng';
+  const digits = ['không', 'một', 'hai', 'ba', 'bốn', 'năm', 'sáu', 'bảy', 'tám', 'chín'];
+
+  const readThreeDigits = (n: number, readZeroHundreds: boolean): string => {
+    let res = '';
+    const hundred = Math.floor(n / 100);
+    const ten = Math.floor((n % 100) / 10);
+    const unit = n % 10;
+
+    if (hundred > 0 || readZeroHundreds) {
+      res += digits[hundred] + ' trăm ';
+    }
+    if (ten > 1) {
+      res += digits[ten] + ' mươi ';
+      if (unit === 1) res += 'mốt ';
+      else if (unit === 5) res += 'lăm ';
+      else if (unit > 0) res += digits[unit] + ' ';
+    } else if (ten === 1) {
+      res += 'mười ';
+      if (unit === 5) res += 'lăm ';
+      else if (unit > 0) res += digits[unit] + ' ';
+    } else if (ten === 0 && unit > 0) {
+      if (hundred > 0 || readZeroHundreds) res += 'lẻ ';
+      res += digits[unit] + ' ';
+    }
+    return res;
+  };
+
+  const units = ['', 'nghìn', 'triệu', 'tỷ', 'nghìn tỷ', 'triệu tỷ'];
+  const groups: number[] = [];
+  let temp = Math.floor(num);
+  while (temp > 0) {
+    groups.push(temp % 1000);
+    temp = Math.floor(temp / 1000);
+  }
+
+  let result = '';
+  for (let i = groups.length - 1; i >= 0; i--) {
+    const grp = groups[i];
+    if (grp > 0) {
+      const readZero = i < groups.length - 1;
+      result += readThreeDigits(grp, readZero) + units[i] + ' ';
+    }
+  }
+
+  result = result.trim();
+  if (!result) return 'Không đồng';
+  return (result.charAt(0).toUpperCase() + result.slice(1) + ' đồng chẵn.').replace(/\s+/g, ' ');
+};
+
 export const formatFileSize = (bytes?: number): string => {
   if (!bytes || bytes <= 0) return '0 B';
   const k = 1024;
@@ -93,6 +158,10 @@ export const getPurchaseStatusInfo = (status: string): StatusMeta => {
       return { label: 'Kế toán xác nhận giá', badgeClass: 'badge-warning', dotColor: '#f59e0b' };
     case 'pending_final_approval':
       return { label: 'Chờ duyệt giá chốt', badgeClass: 'badge-purple', dotColor: '#a855f7' };
+    case 'pending_payment':
+      return { label: 'Chờ kế toán lập thanh toán', badgeClass: 'badge-purple', dotColor: '#a855f7' };
+    case 'pending_payment_approval':
+      return { label: 'Chờ duyệt thanh toán', badgeClass: 'badge-purple', dotColor: '#a855f7' };
     case 'final_approved':
       return { label: 'Đã duyệt giá chốt', badgeClass: 'badge-primary', dotColor: '#6366f1' };
     case 'disbursing':
@@ -128,6 +197,23 @@ export const getAdvanceStatusInfo = (status: string): StatusMeta => {
       return { label: 'Đã nộp chứng từ hoàn', badgeClass: 'badge-warning', dotColor: '#f59e0b' };
     case 'completed':
       return { label: 'Hoàn thành', badgeClass: 'badge-success', dotColor: '#10b981' };
+    case 'rejected':
+      return { label: 'Từ chối', badgeClass: 'badge-danger', dotColor: '#ef4444' };
+    default:
+      return { label: status, badgeClass: 'badge-secondary', dotColor: '#94a3b8' };
+  }
+};
+
+export const getPaymentStatusInfo = (status: string): StatusMeta => {
+  switch (status) {
+    case 'pending_director':
+      return { label: 'Chờ Giám đốc duyệt chi', badgeClass: 'badge-warning', dotColor: '#f59e0b' };
+    case 'pending_chairman':
+      return { label: 'Chờ Chủ tịch duyệt chi', badgeClass: 'badge-purple', dotColor: '#a855f7' };
+    case 'pending_disbursement':
+      return { label: 'Chờ kế toán giải ngân', badgeClass: 'badge-info', dotColor: '#06b6d4' };
+    case 'completed':
+      return { label: 'Đã thanh toán', badgeClass: 'badge-success', dotColor: '#10b981' };
     case 'rejected':
       return { label: 'Từ chối', badgeClass: 'badge-danger', dotColor: '#ef4444' };
     default:

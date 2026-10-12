@@ -5,10 +5,10 @@ const connectDB = require('./config/db');
 const seedData = require('./utils/seed');
 const User = require('./models/User');
 
-// Load env vars
+// Đọc cấu hình biến môi trường
 dotenv.config();
 
-// Connect to database and auto-seed if empty
+// Kết nối cơ sở dữ liệu và tự động tạo dữ liệu mẫu nếu database đang trống
 connectDB().then(async () => {
   try {
     const userCount = await User.countDocuments();
@@ -17,29 +17,43 @@ connectDB().then(async () => {
       await seedData(false);
     }
   } catch (err) {
-    // Database connection error handled in connectDB
+    // Lỗi kết nối cơ sở dữ liệu đã được xử lý trong connectDB
   }
 });
 
 const app = express();
 
-// Middleware
+// Các Middleware cơ bản
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// Routes
+const path = require('path');
+const fs = require('fs');
+
+// Khởi tạo thư mục uploads lưu trữ file vật lý trên ổ cứng nếu chưa có
+const uploadDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+// Phục vụ các file tĩnh được tải lên từ thư mục uploads trên ổ cứng
+app.use('/uploads', express.static(uploadDir));
+
+// Khai báo các Routes chính của ứng dụng
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/departments', require('./routes/departmentRoutes'));
 app.use('/api/purchase-proposals', require('./routes/purchaseProposalRoutes'));
 app.use('/api/advance-proposals', require('./routes/advanceProposalRoutes'));
+app.use('/api/payment-proposals', require('./routes/paymentProposalRoutes'));
+app.use('/api/upload', require('./routes/uploadRoutes'));
 
-// Health check
+// Kiểm tra sức khỏe máy chủ
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'OK', message: 'Server is running' });
+  res.json({ status: 'OK', message: 'Hệ thống máy chủ đang hoạt động bình thường' });
 });
 
-// Manual Seed API endpoint
+// Endpoint nạp lại dữ liệu mẫu thủ công
 app.post('/api/seed', async (req, res) => {
   try {
     await seedData(false);
@@ -49,7 +63,7 @@ app.post('/api/seed', async (req, res) => {
   }
 });
 
-// Error handling middleware
+// Middleware xử lý lỗi tập trung
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).json({

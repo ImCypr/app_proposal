@@ -1,0 +1,66 @@
+import { Role, User } from './auth.model';
+import { Department } from './department.model';
+import { PurchaseProposal } from './purchaseProposal.model';
+
+export type PaymentProposalStatus =
+  | 'pending_director'     // Chờ Giám đốc duyệt (<= 10tr)
+  | 'pending_chairman'     // Chờ Chủ tịch duyệt (> 10tr)
+  | 'pending_disbursement' // Đã duyệt, chờ Kế toán giải ngân
+  | 'completed'            // Kế toán đã giải ngân chuyển tiền xong
+  | 'rejected';            // Bị từ chối
+
+export interface PaymentBeneficiary {
+  name: string;
+  accountNumber: string;
+  bankName: string;
+  branch?: string;
+}
+
+export interface PaymentApprovalStep {
+  _id?: string;
+  step: 'duyet_chi' | 'giai_ngan' | string;
+  role: string;
+  status: 'pending' | 'approved' | 'rejected';
+  approver?: User | { _id: string; fullName: string; role: Role } | null;
+  comment?: string;
+  date?: string | null;
+}
+
+export interface PaymentProposal {
+  _id: string;
+  proposalCode: string;
+  purchaseProposal: PurchaseProposal | { _id: string; proposalCode: string; totalEstimatedAmount: number; totalActualAmount?: number; totalDisbursed: number; status: string };
+  creator: User;
+  department: Department;
+  beneficiary: PaymentBeneficiary;
+  paymentReason: string;
+  paymentMethod: 'bank_transfer' | 'cash';
+  amount: number;
+  amountInWords?: string;
+  installmentNote?: string;
+  attachments?: Array<{ name: string; url: string; size?: number; type?: string }>;
+  status: PaymentProposalStatus;
+  currentApprovalRole?: string | null;
+  approvalFlow: PaymentApprovalStep[];
+  disbursementInfo?: {
+    disbursedAt?: string | null;
+    disbursedBy?: User | { _id: string; fullName: string } | null;
+    transactionCode?: string;
+    note?: string;
+    receiptAttachment?: any;
+  };
+  rejectionReason?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreatePaymentProposalDto {
+  purchaseProposalId: string;
+  beneficiary: PaymentBeneficiary;
+  paymentReason: string;
+  paymentMethod?: 'bank_transfer' | 'cash';
+  amount: number;
+  amountInWords?: string;
+  installmentNote?: string;
+  attachments?: Array<{ name: string; url: string; size?: number; type?: string }>;
+}

@@ -14,7 +14,7 @@ const seedData = async (shouldExit = true) => {
       console.log('✅ Connected to MongoDB for seeding');
     }
 
-    // Clear existing data
+    // Xóa toàn bộ dữ liệu cũ
     await User.deleteMany({});
     await Department.deleteMany({});
     await PurchaseProposal.deleteMany({});
@@ -22,7 +22,7 @@ const seedData = async (shouldExit = true) => {
 
     console.log('🧹 Đã xóa dữ liệu cũ...');
 
-    // 1. Create departments
+    // 1. Khởi tạo danh sách phòng ban
     const departments = await Department.insertMany([
       { name: 'Phòng Kinh Doanh', description: 'Phòng kinh doanh và marketing' },
       { name: 'Phòng Kỹ Thuật', description: 'Phòng kỹ thuật và phát triển công nghệ' },
@@ -34,7 +34,7 @@ const seedData = async (shouldExit = true) => {
 
     console.log('🏢 Đã tạo các phòng ban:', departments.map((d) => d.name).join(', '));
 
-    // 2. Create users with different roles and bank accounts
+    // 2. Khởi tạo tài khoản người dùng theo từng vai trò và số tài khoản ngân hàng
     const users = await User.create([
       {
         fullName: 'Nguyễn Văn An',
@@ -112,8 +112,8 @@ const seedData = async (shouldExit = true) => {
 
     console.log('👤 Đã tạo 6 tài khoản mẫu tương ứng 6 vai trò');
 
-    // 3. Create sample Purchase Proposals
-    // Proposal 1: <= 1M (Chờ Trưởng phòng duyệt)
+    // 3. Khởi tạo đề xuất mua sắm mẫu
+    // Đề xuất 1: <= 1M (Chờ Trưởng phòng duyệt)
     await PurchaseProposal.create({
       proposalCode: 'MS-202610-0001',
       creator: users[0]._id,
@@ -122,20 +122,20 @@ const seedData = async (shouldExit = true) => {
         {
           stt: 1,
           tenVatTu: 'Giấy in A4 Double A',
+          yeuCauKiThuat: 'Định lượng 70gsm',
+          phongBanSuDung: 'Phòng Hành chính - Nhân sự',
           soLuong: 5,
-          donVi: 'Ram',
-          donGiaDuDoan: 90000,
+          donGiaDuKien: 90000,
           donGiaThucTe: null,
-          yeuCau: 'Định lượng 70gsm',
         },
         {
           stt: 2,
           tenVatTu: 'Bút bi Thiên Long',
+          yeuCauKiThuat: 'Mực xanh 0.5mm',
+          phongBanSuDung: 'Phòng Hành chính - Nhân sự',
           soLuong: 2,
-          donVi: 'Hộp',
-          donGiaDuDoan: 120000,
+          donGiaDuKien: 120000,
           donGiaThucTe: null,
-          yeuCau: 'Mực xanh 0.5mm',
         },
       ],
       totalEstimatedAmount: 690000,
@@ -151,7 +151,7 @@ const seedData = async (shouldExit = true) => {
       ],
     });
 
-    // Proposal 2: > 1M, đang ở bước Thu mua khảo sát giá
+    // Đề xuất 2: > 1M, đang ở bước Thu mua khảo sát giá
     await PurchaseProposal.create({
       proposalCode: 'MS-202610-0002',
       creator: users[0]._id,
@@ -160,11 +160,11 @@ const seedData = async (shouldExit = true) => {
         {
           stt: 1,
           tenVatTu: 'Màn hình Dell 24 inch IPS',
+          yeuCauKiThuat: 'Chân đế xoay ngang dọc',
+          phongBanSuDung: 'Phòng Công nghệ thông tin',
           soLuong: 2,
-          donVi: 'Chiếc',
-          donGiaDuDoan: 3200000,
+          donGiaDuKien: 3200000,
           donGiaThucTe: 3150000,
-          yeuCau: 'Chân đế xoay ngang dọc',
         },
       ],
       totalEstimatedAmount: 6400000,
@@ -189,8 +189,8 @@ const seedData = async (shouldExit = true) => {
 
     console.log('📦 Đã tạo các đề xuất mua sắm mẫu');
 
-    // 4. Create sample Advance Proposals
-    // Advance 1: Chờ Giám đốc duyệt
+    // 4. Khởi tạo đề xuất tạm ứng mẫu
+    // Tạm ứng 1: Chờ Giám đốc duyệt
     await AdvanceProposal.create({
       proposalCode: 'TU-202610-0001',
       creator: users[0]._id,
@@ -220,7 +220,7 @@ const seedData = async (shouldExit = true) => {
       ],
     });
 
-    // Advance 2: Đã giải ngân, đang chờ nhân viên nộp hoàn ứng
+    // Tạm ứng 2: Đã giải ngân, đang chờ nhân viên nộp hoàn ứng
     await AdvanceProposal.create({
       proposalCode: 'TU-202610-0002',
       creator: users[0]._id,
@@ -300,7 +300,7 @@ const seedData = async (shouldExit = true) => {
   }
 };
 
-// If run directly from terminal: node utils/seed.js
+// Nếu chạy trực tiếp từ dòng lệnh: node utils/seed.js
 if (require.main === module) {
   seedData(true);
 }

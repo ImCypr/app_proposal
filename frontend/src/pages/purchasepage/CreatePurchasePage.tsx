@@ -17,23 +17,27 @@ import {
 interface PurchaseFormItem {
   id: string;
   tenVatTu: string;
+  yeuCauKiThuat: string;
+  phongBanSuDung: string;
   soLuong: number;
-  donVi: string;
-  donGiaDuDoan: number;
-  yeuCau: string;
+  donGiaDuKien: number;
 }
 
 export const CreatePurchasePage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const defaultDepartment = (user?.department && typeof user.department === 'object' && 'name' in user.department)
+    ? (user.department as any).name
+    : '';
+
   const [items, setItems] = useState<PurchaseFormItem[]>([
     {
       id: '1',
       tenVatTu: '',
+      yeuCauKiThuat: '',
+      phongBanSuDung: defaultDepartment,
       soLuong: 1,
-      donVi: 'Cái',
-      donGiaDuDoan: 0,
-      yeuCau: '',
+      donGiaDuKien: 0,
     },
   ]);
   const [submitting, setSubmitting] = useState(false);
@@ -45,10 +49,10 @@ export const CreatePurchasePage: React.FC = () => {
       {
         id: Date.now().toString(),
         tenVatTu: '',
+        yeuCauKiThuat: '',
+        phongBanSuDung: prev[prev.length - 1]?.phongBanSuDung || defaultDepartment,
         soLuong: 1,
-        donVi: 'Cái',
-        donGiaDuDoan: 0,
-        yeuCau: '',
+        donGiaDuKien: 0,
       },
     ]);
   };
@@ -67,11 +71,11 @@ export const CreatePurchasePage: React.FC = () => {
   };
 
   const totalEstimatedAmount = items.reduce(
-    (sum, item) => sum + (Number(item.soLuong) || 0) * (Number(item.donGiaDuDoan) || 0),
+    (sum, item) => sum + (Number(item.soLuong) || 0) * (Number(item.donGiaDuKien) || 0),
     0
   );
 
-  // Determine initial approver preview based on user role and amount
+  // Ước tính cấp duyệt vòng 1 dựa trên vai trò của người tạo và tổng giá trị dự toán
   let approverPreview = 'Trưởng phòng';
   if (user?.role === 'nhan_vien') {
     if (totalEstimatedAmount <= 1000000) approverPreview = 'Trưởng phòng';
@@ -92,17 +96,21 @@ export const CreatePurchasePage: React.FC = () => {
     e.preventDefault();
     setError(null);
 
-    // Validation
+    // Kiểm tra tính hợp lệ của dữ liệu nhập (Validation)
     for (let i = 0; i < items.length; i++) {
       if (!items[i].tenVatTu.trim()) {
         setError(`Vui lòng nhập tên vật tư cho dòng số ${i + 1}`);
+        return;
+      }
+      if (!items[i].phongBanSuDung.trim()) {
+        setError(`Vui lòng nhập phòng ban sử dụng cho dòng số ${i + 1}`);
         return;
       }
       if (items[i].soLuong <= 0) {
         setError(`Số lượng dòng số ${i + 1} phải lớn hơn 0`);
         return;
       }
-      if (items[i].donGiaDuDoan <= 0) {
+      if (items[i].donGiaDuKien <= 0) {
         setError(`Đơn giá dự kiến dòng số ${i + 1} phải lớn hơn 0`);
         return;
       }
@@ -114,10 +122,10 @@ export const CreatePurchasePage: React.FC = () => {
         items: items.map((item, index) => ({
           stt: index + 1,
           tenVatTu: item.tenVatTu.trim(),
+          yeuCauKiThuat: item.yeuCauKiThuat.trim(),
+          phongBanSuDung: item.phongBanSuDung.trim(),
           soLuong: Number(item.soLuong),
-          donVi: item.donVi.trim(),
-          donGiaDuDoan: Number(item.donGiaDuDoan),
-          yeuCau: item.yeuCau.trim(),
+          donGiaDuKien: Number(item.donGiaDuKien),
         })),
       };
 
@@ -131,7 +139,7 @@ export const CreatePurchasePage: React.FC = () => {
 
   return (
     <div>
-      {/* Header */}
+      {/* Tiêu đề trang */}
       <div style={{ marginBottom: '1.75rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
         <Link to="/purchase" className="btn btn-ghost btn-sm" style={{ padding: '0.4rem' }}>
           <ArrowLeft size={18} />
@@ -165,7 +173,7 @@ export const CreatePurchasePage: React.FC = () => {
       )}
 
       <form onSubmit={handleSubmit}>
-        {/* Items Table Card */}
+        {/* Bảng danh sách vật tư hàng hóa */}
         <div className="card" style={{ marginBottom: '1.75rem', padding: '1.5rem' }}>
           <div
             style={{
@@ -190,18 +198,18 @@ export const CreatePurchasePage: React.FC = () => {
               <thead>
                 <tr>
                   <th style={{ width: '40px', textAlign: 'center' }}>STT</th>
-                  <th style={{ minWidth: '220px' }}>Tên Vật Tư <span style={{ color: 'var(--danger)' }}>*</span></th>
-                  <th style={{ width: '100px' }}>Số Lượng</th>
-                  <th style={{ width: '110px' }}>Đơn Vị</th>
-                  <th style={{ width: '160px' }}>Đơn Giá Dự Đoán (VNĐ)</th>
+                  <th style={{ minWidth: '200px' }}>Tên Vật Tư <span style={{ color: 'var(--danger)' }}>*</span></th>
+                  <th style={{ minWidth: '180px' }}>Yêu Cầu Kĩ Thuật</th>
+                  <th style={{ minWidth: '170px' }}>Phòng Ban Sử Dụng <span style={{ color: 'var(--danger)' }}>*</span></th>
+                  <th style={{ width: '90px' }}>Số Lượng</th>
+                  <th style={{ width: '160px' }}>Đơn Giá Dự Kiến (VNĐ)</th>
                   <th style={{ width: '160px' }}>Thành Tiền Dự Kiến</th>
-                  <th style={{ minWidth: '180px' }}>Yêu Cầu / Ghi Chú</th>
                   <th style={{ width: '50px' }}></th>
                 </tr>
               </thead>
               <tbody>
                 {items.map((item, index) => {
-                  const lineTotal = (Number(item.soLuong) || 0) * (Number(item.donGiaDuDoan) || 0);
+                  const lineTotal = (Number(item.soLuong) || 0) * (Number(item.donGiaDuKien) || 0);
                   return (
                     <tr key={item.id}>
                       <td style={{ textAlign: 'center', fontWeight: 600 }}>{index + 1}</td>
@@ -217,6 +225,25 @@ export const CreatePurchasePage: React.FC = () => {
                       </td>
                       <td>
                         <input
+                          type="text"
+                          className="form-input"
+                          placeholder="Quy cách, tiêu chuẩn kĩ thuật..."
+                          value={item.yeuCauKiThuat}
+                          onChange={(e) => updateItem(index, 'yeuCauKiThuat', e.target.value)}
+                        />
+                      </td>
+                      <td>
+                        <input
+                          type="text"
+                          required
+                          className="form-input"
+                          placeholder="Phòng ban sử dụng..."
+                          value={item.phongBanSuDung}
+                          onChange={(e) => updateItem(index, 'phongBanSuDung', e.target.value)}
+                        />
+                      </td>
+                      <td>
+                        <input
                           type="number"
                           min="1"
                           required
@@ -227,37 +254,18 @@ export const CreatePurchasePage: React.FC = () => {
                       </td>
                       <td>
                         <input
-                          type="text"
-                          required
-                          className="form-input"
-                          placeholder="Ram / Cái..."
-                          value={item.donVi}
-                          onChange={(e) => updateItem(index, 'donVi', e.target.value)}
-                        />
-                      </td>
-                      <td>
-                        <input
                           type="number"
                           min="0"
                           step="any"
                           required
                           className="form-input font-mono"
                           placeholder="0"
-                          value={item.donGiaDuDoan || ''}
-                          onChange={(e) => updateItem(index, 'donGiaDuDoan', Number(e.target.value))}
+                          value={item.donGiaDuKien || ''}
+                          onChange={(e) => updateItem(index, 'donGiaDuKien', Number(e.target.value))}
                         />
                       </td>
                       <td style={{ fontWeight: 700, color: 'var(--accent-cyan)' }} className="font-mono">
                         {formatCurrency(lineTotal)}
-                      </td>
-                      <td>
-                        <input
-                          type="text"
-                          className="form-input"
-                          placeholder="Quy cách, chủng loại..."
-                          value={item.yeuCau}
-                          onChange={(e) => updateItem(index, 'yeuCau', e.target.value)}
-                        />
                       </td>
                       <td>
                         {items.length > 1 && (
@@ -280,7 +288,7 @@ export const CreatePurchasePage: React.FC = () => {
           </div>
         </div>
 
-        {/* Calculation & Workflow Summary Footer */}
+        {/* Khối tổng kết ngân sách và thẩm quyền duyệt */}
         <div
           style={{
             display: 'grid',
@@ -289,7 +297,7 @@ export const CreatePurchasePage: React.FC = () => {
             marginBottom: '2rem',
           }}
         >
-          {/* Workflow Guide */}
+          {/* Hướng dẫn thẩm quyền duyệt */}
           <div className="card" style={{ padding: '1.25rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
               <HelpCircle size={18} color="var(--primary)" />
@@ -317,7 +325,7 @@ export const CreatePurchasePage: React.FC = () => {
             </div>
           </div>
 
-          {/* Budget Grand Total */}
+          {/* Tổng tiền dự toán */}
           <div
             className="card"
             style={{

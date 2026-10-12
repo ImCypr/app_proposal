@@ -61,7 +61,7 @@ export const LoginPage: React.FC = () => {
         overflow: 'hidden',
       }}
     >
-      {/* Decorative ambient glowing orbs */}
+      {/* Hiệu ứng quầng sáng trang trí nền */}
       <div
         style={{
           position: 'absolute',
@@ -99,7 +99,7 @@ export const LoginPage: React.FC = () => {
           zIndex: 1,
         }}
       >
-        {/* Left column: Login card */}
+        {/* Cột bên trái: Thẻ form đăng nhập */}
         <div className="card-glass" style={{ padding: '2.5rem' }}>
           <div style={{ marginBottom: '1.75rem' }}>
             <TagLogo
@@ -214,7 +214,7 @@ export const LoginPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Right column: 1-click Demo Accounts Selector */}
+        {/* Cột bên phải: Chọn nhanh tài khoản demo 1 chạm */}
         <div
           className="card-glass"
           style={{

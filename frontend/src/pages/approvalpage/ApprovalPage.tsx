@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { purchaseProposalService, advanceProposalService } from '../../services';
-import { PurchaseProposal, AdvanceProposal } from '../../models';
+import { purchaseProposalService, advanceProposalService, paymentProposalService } from '../../services';
+import { PurchaseProposal, AdvanceProposal, PaymentProposal } from '../../models';
 import { StatusBadge } from '../../component';
 import { formatCurrency, formatDate, getRoleLabel } from '../../utils/formatters';
 import {
@@ -12,21 +12,24 @@ import {
   Eye,
   Loader2,
   Inbox,
+  CreditCard,
 } from 'lucide-react';
 
 export const ApprovalPage: React.FC = () => {
   const { user } = useAuth();
   const [purchaseList, setPurchaseList] = useState<PurchaseProposal[]>([]);
   const [advanceList, setAdvanceList] = useState<AdvanceProposal[]>([]);
+  const [paymentList, setPaymentList] = useState<PaymentProposal[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'all' | 'purchase' | 'advance'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'purchase' | 'advance' | 'payment'>('all');
 
   const fetchPendingProposals = useCallback(async () => {
     setLoading(true);
     try {
-      const [purchases, advances] = await Promise.all([
+      const [purchases, advances, payments] = await Promise.all([
         purchaseProposalService.getAll(),
         advanceProposalService.getAll(),
+        paymentProposalService.getAll(),
       ]);
 
       const myPurchases = purchases.filter(
@@ -39,10 +42,18 @@ export const ApprovalPage: React.FC = () => {
           (a.currentApprovalRole === 'creator' && a.creator?._id === user?._id)
       );
 
+      const myPayments = payments.filter((pay) => {
+        if (user?.role === 'giam_doc') return pay.status === 'pending_director';
+        if (user?.role === 'chu_tich') return pay.status === 'pending_chairman' || pay.status === 'pending_director';
+        if (user?.role === 'ke_toan') return pay.status === 'pending_disbursement';
+        return false;
+      });
+
       setPurchaseList(myPurchases);
       setAdvanceList(myAdvances);
+      setPaymentList(myPayments);
     } catch (err) {
-      console.error('Error fetching approval inbox:', err);
+      console.error('Lỗi khi tải danh sách đề xuất cần duyệt:', err);
     } finally {
       setLoading(false);
     }
@@ -52,11 +63,11 @@ export const ApprovalPage: React.FC = () => {
     fetchPendingProposals();
   }, [fetchPendingProposals]);
 
-  const totalPending = purchaseList.length + advanceList.length;
+  const totalPending = purchaseList.length + advanceList.length + paymentList.length;
 
   return (
     <div>
-      {/* Header */}
+      {/* Tiêu đề trang */}
       <div className="page-header">
         <div className="page-header-title">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
@@ -83,7 +94,7 @@ export const ApprovalPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Tabs */}
+      {/* Các tab phân loại đề xuất */}
       <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
         <button
           className={`btn ${activeTab === 'all' ? 'btn-primary' : 'btn-ghost'}`}
@@ -108,6 +119,14 @@ export const ApprovalPage: React.FC = () => {
           <Banknote size={15} />
           <span>Tạm Ứng ({advanceList.length})</span>
         </button>
+        <button
+          className={`btn ${activeTab === 'payment' ? 'btn-primary' : 'btn-ghost'}`}
+          onClick={() => setActiveTab('payment')}
+          style={{ fontSize: '0.825rem' }}
+        >
+          <CreditCard size={15} />
+          <span>Thanh Toán ({paymentList.length})</span>
+        </button>
       </div>
 
       {loading ? (
@@ -126,7 +145,7 @@ export const ApprovalPage: React.FC = () => {
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          {/* Purchase List awaiting approval */}
+          {/* Danh sách đề xuất mua sắm chờ duyệt */}
           {(activeTab === 'all' || activeTab === 'purchase') && purchaseList.length > 0 && (
             <div className="card">
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
@@ -180,7 +199,91 @@ export const ApprovalPage: React.FC = () => {
             </div>
           )}
 
-          {/* Advance List awaiting approval */}
+          {/* Danh sách đề xuất thanh toán chờ duyệt / giải ngân */}
+          {(activeTab === 'all' || activeTab === 'payment') && paymentList.length > 0 && (
+            <div className="card">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+                <CreditCard size={18} color="var(--primary)" />
+                <h3 style={{ fontSize: '1.05rem', color: '#ffffff' }}>Đề Xuất Thanh Toán Chờ Xử Lý ({paymentList.length})</h3>
+              </div>
+
+              <div className="table-container">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Mã Đơn</th>
+                      <th>Đơn Mua Sắm Gắn Kèm</th>
+                      <th>Người Thụ Hưởng</th>
+                      <th>Số Tiền</th>
+                      <th>Cấp Phê Duyệt</th>
+                      <th>Trạng Thái</th>
+                      <th style={{ textAlign: 'right' }}>Hành Động</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paymentList.map((pay) => {
+                      const purchaseObj =
+                        typeof pay.purchaseProposal === 'object' && pay.purchaseProposal !== null
+                          ? pay.purchaseProposal
+                          : null;
+                      const purchaseId = purchaseObj ? (purchaseObj as any)._id : String(pay.purchaseProposal || '');
+                      const purchaseCode = purchaseObj ? (purchaseObj as any).proposalCode : 'Đơn mua sắm';
+
+                      return (
+                        <tr key={pay._id}>
+                          <td>
+                            <Link to={`/payment/${pay._id}`} style={{ fontWeight: 700 }} className="font-mono">
+                              {pay.proposalCode || `TT-${pay._id.slice(-6).toUpperCase()}`}
+                            </Link>
+                          </td>
+                          <td>
+                            {purchaseId ? (
+                              <Link to={`/purchase/${purchaseId}`} className="font-mono" style={{ color: 'var(--primary)', fontSize: '0.85rem' }}>
+                                {purchaseCode}
+                              </Link>
+                            ) : (
+                              <span style={{ color: 'var(--text-muted)' }}>—</span>
+                            )}
+                          </td>
+                          <td style={{ fontSize: '0.85rem' }}>
+                            <div style={{ fontWeight: 600 }}>{pay.beneficiary?.name}</div>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                              {pay.beneficiary?.bankName} - {pay.beneficiary?.accountNumber}
+                            </div>
+                          </td>
+                          <td style={{ fontWeight: 700, color: 'var(--accent-cyan)' }} className="font-mono">
+                            {formatCurrency(pay.amount)}
+                          </td>
+                          <td>
+                            {pay.amount <= 10000000 ? (
+                              <span className="badge badge-info" style={{ fontSize: '0.7rem' }}>
+                                ≤ 10tr (Giám đốc)
+                              </span>
+                            ) : (
+                              <span className="badge badge-purple" style={{ fontSize: '0.7rem' }}>
+                                &gt; 10tr (Chủ tịch)
+                              </span>
+                            )}
+                          </td>
+                          <td>
+                            <StatusBadge status={pay.status} type="payment" />
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            <Link to={`/payment/${pay._id}`} className="btn btn-warning btn-sm">
+                              <Eye size={14} />
+                              <span>{pay.status === 'pending_disbursement' ? 'Giải ngân' : 'Duyệt chi'}</span>
+                            </Link>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Danh sách đề xuất tạm ứng chờ phê duyệt */}
           {(activeTab === 'all' || activeTab === 'advance') && advanceList.length > 0 && (
             <div className="card">
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>

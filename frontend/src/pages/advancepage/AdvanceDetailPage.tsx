@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { advanceProposalService } from '../../services';
+import { advanceProposalService, uploadService } from '../../services';
 import { AdvanceProposal, SettlementType, SettlementAttachment } from '../../models';
-import { StatusBadge, ApprovalFlowTracker, Modal } from '../../component';
+import { StatusBadge, ApprovalFlowTracker, Modal, AdvancePrintModal } from '../../component';
 import { formatCurrency, formatDate, getRoleLabel, formatFileSize } from '../../utils/formatters';
 import { useAuth } from '../../context/AuthContext';
 import {
@@ -25,6 +25,7 @@ import {
   Image as ImageIcon,
   FileText,
   X,
+  Printer,
 } from 'lucide-react';
 
 const getFileIcon = (fileName: string, type?: string) => {
@@ -50,57 +51,73 @@ export const AdvanceDetailPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Modals
+  // Quản lý trạng thái mở/đóng các Modal
   const [isApproveOpen, setIsApproveOpen] = useState(false);
   const [isRejectOpen, setIsRejectOpen] = useState(false);
   const [isDisburseOpen, setIsDisburseOpen] = useState(false);
   const [isSettlementOpen, setIsSettlementOpen] = useState(false);
   const [isConfirmSettlementOpen, setIsConfirmSettlementOpen] = useState(false);
+  const [isDisburseSuccessOpen, setIsDisburseSuccessOpen] = useState(false);
+  const [isPrintOpen, setIsPrintOpen] = useState(false);
+  const [disburseSuccessInfo, setDisburseSuccessInfo] = useState<{
+    code: string;
+    amount: number;
+    beneficiaryName: string;
+    accountNumber: string;
+    bankName: string;
+    note: string;
+  } | null>(null);
   const [previewAttachment, setPreviewAttachment] = useState<{ name: string; url: string; type?: string } | null>(null);
 
   const handleOpenPreview = (name: string, url: string, type?: string) => {
-    // If it's a PDF, we can also open in a new tab for native PDF viewer or display in modal
+    // Nếu là file PDF, hiển thị xem trước trong modal
     setPreviewAttachment({ name, url, type });
   };
 
-  // Form states
+  // Dữ liệu biểu mẫu trong các Modal
   const [comment, setComment] = useState('');
   const [rejectReason, setRejectReason] = useState('');
   const [disburseNote, setDisburseNote] = useState('');
   const [disburseAmount, setDisburseAmount] = useState<number>(0);
 
-  // Settlement Form State
+  // Dữ liệu biểu mẫu hoàn ứng
   const [settlementType, setSettlementType] = useState<SettlementType>('exact');
   const [settlementAmount, setSettlementAmount] = useState<number>(0);
   const [settlementNote, setSettlementNote] = useState('');
   const [settlementAttachments, setSettlementAttachments] = useState<SettlementAttachment[]>([]);
   const [isDragging, setIsDragging] = useState(false);
 
-  const processFiles = (fileList: FileList | File[]) => {
+  const [fileUploading, setFileUploading] = useState(false);
+
+  // Xử lý upload danh sách tệp đính kèm hoàn ứng lưu thẳng vào ổ cứng máy chủ
+  const processFiles = async (fileList: FileList | File[]) => {
     const files = Array.from(fileList);
     if (!files || files.length === 0) return;
 
-    files.forEach((file) => {
-      if (file.size > 10 * 1024 * 1024) {
-        alert(`File "${file.name}" vượt quá dung lượng tối đa 10MB.`);
-        return;
-      }
+    // Kiểm tra dung lượng từng tệp không vượt quá 15MB
+    const oversizedFiles = files.filter((f) => f.size > 15 * 1024 * 1024);
+    if (oversizedFiles.length > 0) {
+      alert(`Một số tệp vượt quá dung lượng tối đa 15MB: ${oversizedFiles.map((f) => f.name).join(', ')}`);
+      return;
+    }
 
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const base64Url = event.target?.result as string;
-        setSettlementAttachments((prev) => [
-          ...prev,
-          {
-            name: file.name,
-            url: base64Url,
-            size: file.size,
-            type: file.type,
-          },
-        ]);
-      };
-      reader.readAsDataURL(file);
-    });
+    setFileUploading(true);
+    try {
+      const uploadedResults = await uploadService.uploadFiles(files);
+      setSettlementAttachments((prev) => [
+        ...prev,
+        ...uploadedResults.map((item) => ({
+          name: item.name,
+          url: item.url,
+          size: item.size,
+          type: item.type,
+        })),
+      ]);
+    } catch (err: any) {
+      alert(err.message || 'Lỗi khi tải tệp lên ổ cứng máy chủ');
+    } finally {
+      setFileUploading(false);
+    }
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -134,7 +151,7 @@ export const AdvanceDetailPage: React.FC = () => {
     if (id) fetchProposal(id);
   }, [id, fetchProposal]);
 
-  // Handlers
+  // Các hàm xử lý hành động người dùng
   const handleApprove = async () => {
     if (!proposal) return;
     setActionLoading(true);
@@ -172,13 +189,24 @@ export const AdvanceDetailPage: React.FC = () => {
     if (!proposal) return;
     setActionLoading(true);
     try {
+      const savedAmount = disburseAmount;
+      const savedNote = disburseNote || `Giải ngân tạm ứng chuyển vào STK ${proposal.bankAccount?.accountNumber}`;
       await advanceProposalService.accountingDisburse(
         proposal._id,
-        disburseAmount,
-        disburseNote || `Giải ngân tạm ứng chuyển vào STK ${proposal.bankAccount?.accountNumber}`
+        savedAmount,
+        savedNote
       );
+      setDisburseSuccessInfo({
+        code: proposal.proposalCode,
+        amount: savedAmount,
+        beneficiaryName: proposal.creator?.fullName || '',
+        accountNumber: proposal.bankAccount?.accountNumber || '',
+        bankName: proposal.bankAccount?.bankName || '',
+        note: savedNote,
+      });
       setIsDisburseOpen(false);
       setDisburseNote('');
+      setIsDisburseSuccessOpen(true);
       fetchProposal(proposal._id);
     } catch (err: any) {
       alert(err.message);
@@ -244,7 +272,7 @@ export const AdvanceDetailPage: React.FC = () => {
     );
   }
 
-  // Permission conditions
+  // Điều kiện phân quyền thao tác theo vai trò
   const isDirectorOrChairmanApproval =
     proposal.currentApprovalRole === user?.role &&
     (proposal.status === 'pending_director' || proposal.status === 'pending_chairman');
@@ -263,7 +291,7 @@ export const AdvanceDetailPage: React.FC = () => {
 
   return (
     <div>
-      {/* Header and Back Bar */}
+      {/* Thanh tiêu đề và nút quay lại */}
       <div style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
           <Link to="/advance" className="btn btn-ghost btn-sm" style={{ padding: '0.4rem' }}>
@@ -284,7 +312,7 @@ export const AdvanceDetailPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Action Buttons Toolbar */}
+        {/* Thanh công cụ nút thao tác */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
           {isDirectorOrChairmanApproval && (
             <>
@@ -325,14 +353,25 @@ export const AdvanceDetailPage: React.FC = () => {
               <span>Xác Nhận Quyết Toán Hoàn Ứng</span>
             </button>
           )}
+
+          <button
+            type="button"
+            onClick={() => setIsPrintOpen(true)}
+            className="btn btn-secondary"
+            style={{ gap: '0.4rem' }}
+            title="Xem trước và in biểu mẫu giấy đề nghị tạm ứng PDF"
+          >
+            <Printer size={16} />
+            <span>In / Xuất PDF</span>
+          </button>
         </div>
       </div>
 
-      {/* Main Content Layout */}
+      {/* Bố cục nội dung chính */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '1.75rem' }}>
-        {/* Left Column */}
+        {/* Cột bên trái: Chi tiết tạm ứng & Báo cáo hoàn ứng */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
-          {/* Creator & Bank Info Card */}
+          {/* Thẻ thông tin người tạo & Tài khoản ngân hàng thụ hưởng */}
           <div className="card" style={{ padding: '1.25rem 1.5rem' }}>
             <div
               style={{
@@ -426,7 +465,7 @@ export const AdvanceDetailPage: React.FC = () => {
               </table>
             </div>
 
-            {/* Total */}
+            {/* Tổng số tiền */}
             <div
               style={{
                 marginTop: '1.25rem',
@@ -454,7 +493,7 @@ export const AdvanceDetailPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Settlement Details Card (if submitted) */}
+          {/* Thẻ chi tiết báo cáo hoàn tạm ứng nếu đã nộp */}
           {proposal.settlement && proposal.settlement.submittedAt && (
             <div
               className="card"
@@ -710,7 +749,7 @@ export const AdvanceDetailPage: React.FC = () => {
         </div>
       </div>
 
-      {/* 1. APPROVE MODAL */}
+      {/* 1. MODAL DUYỆT ĐỀ XUẤT TẠM ỨNG */}
       <Modal isOpen={isApproveOpen} onClose={() => setIsApproveOpen(false)} title="Duyệt Đơn Tạm Ứng">
         <div style={{ marginBottom: '1.25rem' }}>
           <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
@@ -735,7 +774,7 @@ export const AdvanceDetailPage: React.FC = () => {
         </div>
       </Modal>
 
-      {/* 2. REJECT MODAL */}
+      {/* 2. MODAL TỪ CHỐI ĐỀ XUẤT TẠM ỨNG */}
       <Modal isOpen={isRejectOpen} onClose={() => setIsRejectOpen(false)} title="Từ Chối Đề Xuất Tạm Ứng">
         <div style={{ marginBottom: '1.25rem' }}>
           <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
@@ -760,7 +799,7 @@ export const AdvanceDetailPage: React.FC = () => {
         </div>
       </Modal>
 
-      {/* 3. ACCOUNTING DISBURSE MODAL */}
+      {/* 3. MODAL KẾ TOÁN GIẢI NGÂN TẠM ỨNG */}
       <Modal isOpen={isDisburseOpen} onClose={() => setIsDisburseOpen(false)} title="Kế Toán Giải Ngân Tạm Ứng">
         <div style={{ marginBottom: '1.25rem' }}>
           <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
@@ -812,7 +851,7 @@ export const AdvanceDetailPage: React.FC = () => {
         </div>
       </Modal>
 
-      {/* 4. CREATOR SETTLEMENT MODAL */}
+      {/* 4. MODAL NỘP BÁO CÁO QUYẾT TOÁN HOÀN ỨNG */}
       <Modal isOpen={isSettlementOpen} onClose={() => setIsSettlementOpen(false)} title="Nộp Báo Cáo Quyết Toán Hoàn Ứng">
         <div style={{ marginBottom: '1.25rem' }}>
           <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
@@ -820,7 +859,7 @@ export const AdvanceDetailPage: React.FC = () => {
           </p>
         </div>
 
-        {/* 3 Options Radio Pills */}
+        {/* 3 tùy chọn phân loại chi tiêu hoàn ứng */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem', marginBottom: '1.25rem' }}>
           <button
             type="button"
@@ -903,17 +942,26 @@ export const AdvanceDetailPage: React.FC = () => {
               if (input) input.click();
             }}
           >
-            <UploadCloud size={30} color={isDragging ? 'var(--accent-cyan)' : 'var(--primary)'} />
+            {fileUploading ? (
+              <Loader2 size={30} className="animate-spin" color="var(--primary)" />
+            ) : (
+              <UploadCloud size={30} color={isDragging ? 'var(--accent-cyan)' : 'var(--primary)'} />
+            )}
             <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#ffffff' }}>
-              {isDragging ? 'Thả file vào đây ngay' : 'Nhấp để chọn file hoặc kéo thả vào đây'}
+              {fileUploading
+                ? 'Đang tải và lưu tệp vào ổ cứng máy chủ...'
+                : isDragging
+                ? 'Thả file vào đây ngay'
+                : 'Nhấp để chọn file hoặc kéo thả vào đây'}
             </div>
             <div style={{ fontSize: '0.725rem', color: 'var(--text-muted)' }}>
-              Hỗ trợ PDF, Excel (.xlsx, .xls), Word (.docx), Ảnh (.jpg, .png, hóa đơn) tối đa 10MB/file
+              Hỗ trợ PDF, Excel (.xlsx, .xls), Word (.docx), Ảnh (.jpg, .png, hóa đơn) tối đa 15MB/file (Lưu trực tiếp vào ổ cứng server)
             </div>
             <input
               id="settlement-file-input"
               type="file"
               multiple
+              disabled={fileUploading}
               accept=".pdf,.xls,.xlsx,.csv,.doc,.docx,.jpg,.jpeg,.png,.webp"
               style={{ display: 'none' }}
               onChange={handleFileUpload}
@@ -1012,7 +1060,7 @@ export const AdvanceDetailPage: React.FC = () => {
         </div>
       </Modal>
 
-      {/* 5. ACCOUNTING CONFIRM SETTLEMENT MODAL */}
+      {/* 5. MODAL KẾ TOÁN XÁC NHẬN QUYẾT TOÁN HOÀN ỨNG */}
       <Modal isOpen={isConfirmSettlementOpen} onClose={() => setIsConfirmSettlementOpen(false)} title="Xác Nhận Quyết Toán Hoàn Ứng">
         <div style={{ marginBottom: '1.25rem' }}>
           <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
@@ -1035,7 +1083,7 @@ export const AdvanceDetailPage: React.FC = () => {
               <div>Ghi chú: {proposal.settlement.note}</div>
             ) : null}
 
-            {/* Attachments preview for accountant in confirmation modal */}
+            {/* Danh sách chứng từ đính kèm trong modal kế toán xác nhận */}
             {proposal.settlement?.attachments && proposal.settlement.attachments.length > 0 && (
               <div style={{ marginTop: '0.75rem', borderTop: '1px solid var(--border-subtle)', paddingTop: '0.65rem' }}>
                 <div style={{ fontSize: '0.775rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.4rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
@@ -1195,7 +1243,7 @@ export const AdvanceDetailPage: React.FC = () => {
               </div>
             )}
 
-            {/* Bottom Actions */}
+            {/* Các nút thao tác dưới chân modal */}
             <div
               style={{
                 width: '100%',
@@ -1241,6 +1289,102 @@ export const AdvanceDetailPage: React.FC = () => {
           </div>
         )}
       </Modal>
+
+      {/* MODAL POPUP XÁC NHẬN GIẢI NGÂN THÀNH CÔNG */}
+      <Modal
+        isOpen={isDisburseSuccessOpen}
+        onClose={() => setIsDisburseSuccessOpen(false)}
+        title="Giải Ngân Tạm Ứng Thành Công"
+        maxWidth="500px"
+      >
+        <div style={{ textAlign: 'center', padding: '1rem 0.5rem 0.5rem 0.5rem' }}>
+          <div
+            style={{
+              width: 68,
+              height: 68,
+              borderRadius: '50%',
+              backgroundColor: 'rgba(16, 185, 129, 0.15)',
+              border: '2px solid rgba(16, 185, 129, 0.4)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 1.25rem auto',
+              color: 'var(--success)',
+              boxShadow: '0 0 30px rgba(16, 185, 129, 0.25)',
+            }}
+          >
+            <CheckCircle2 size={40} />
+          </div>
+
+          <h3 style={{ fontSize: '1.25rem', color: '#ffffff', marginBottom: '0.4rem', fontWeight: 700 }}>
+            Giải Ngân Tạm Ứng Thành Công!
+          </h3>
+          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '1.5rem', lineHeight: 1.5 }}>
+            Khoản tiền tạm ứng đã được xác nhận chuyển khoản cho nhân viên yêu cầu.
+          </p>
+
+          {disburseSuccessInfo && (
+            <div
+              style={{
+                backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                border: '1px solid var(--border-color)',
+                borderRadius: 'var(--radius-lg)',
+                padding: '1.25rem',
+                textAlign: 'left',
+                marginBottom: '1.5rem',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.75rem',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Mã Đề Xuất:</span>
+                <span className="font-mono" style={{ fontWeight: 700, color: '#ffffff' }}>
+                  {disburseSuccessInfo.code}
+                </span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Số Tiền Tạm Ứng:</span>
+                <span className="font-mono" style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--success)' }}>
+                  {formatCurrency(disburseSuccessInfo.amount)}
+                </span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Người Nhận Tiền:</span>
+                <span style={{ fontWeight: 600, color: '#ffffff', fontSize: '0.875rem' }}>
+                  {disburseSuccessInfo.beneficiaryName}
+                </span>
+              </div>
+              {disburseSuccessInfo.accountNumber && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Tài Khoản / Ngân Hàng:</span>
+                  <span className="font-mono" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                    {disburseSuccessInfo.accountNumber} ({disburseSuccessInfo.bankName})
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+
+          <div style={{ display: 'flex', justifyContent: 'center' }}>
+            <button
+              type="button"
+              onClick={() => setIsDisburseSuccessOpen(false)}
+              className="btn btn-primary"
+              style={{ minWidth: '140px', padding: '0.65rem 1.75rem', fontWeight: 600 }}
+            >
+              Hoàn Tất
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* MODAL XEM TRƯỚC VÀ IN BIỂU MẪU GIẤY ĐỀ NGHỊ TẠM ỨNG */}
+      <AdvancePrintModal
+        isOpen={isPrintOpen}
+        onClose={() => setIsPrintOpen(false)}
+        proposal={proposal}
+      />
     </div>
   );
 };

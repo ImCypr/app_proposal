@@ -1,9 +1,8 @@
-import React from 'react';
-import { getAdvanceStatusInfo, getPurchaseStatusInfo } from '../utils/formatters';
+import { getAdvanceStatusInfo, getPurchaseStatusInfo, getPaymentStatusInfo } from '../utils/formatters';
 
 interface StatusBadgeProps {
   status: string;
-  type?: 'purchase' | 'advance';
+  type?: 'purchase' | 'advance' | 'payment';
   showDot?: boolean;
 }
 
@@ -15,6 +14,8 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
   const meta =
     type === 'purchase'
       ? getPurchaseStatusInfo(status)
+      : type === 'payment'
+      ? getPaymentStatusInfo(status)
       : getAdvanceStatusInfo(status);
 
   return (

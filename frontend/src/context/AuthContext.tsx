@@ -72,7 +72,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
-  // Initialize and verify session
+  // Khởi tạo và xác thực phiên đăng nhập
   useEffect(() => {
     const initAuth = async () => {
       if (token) {

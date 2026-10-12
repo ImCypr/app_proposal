@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { advanceProposalService } from '../../services';
 import { AdvanceProposal } from '../../models';
-import { StatusBadge } from '../../component';
+import { StatusBadge, AdvancePrintModal } from '../../component';
 import { formatCurrency, formatDate, getRoleLabel } from '../../utils/formatters';
 import {
   Banknote,
@@ -12,6 +12,7 @@ import {
   Eye,
   Loader2,
   FileQuestion,
+  Printer,
 } from 'lucide-react';
 
 export const AdvanceListPage: React.FC = () => {
@@ -19,6 +20,7 @@ export const AdvanceListPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [printProposal, setPrintProposal] = useState<AdvanceProposal | null>(null);
 
   const loadProposals = async () => {
     setLoading(true);
@@ -59,7 +61,7 @@ export const AdvanceListPage: React.FC = () => {
 
   return (
     <div>
-      {/* Header */}
+      {/* Tiêu đề trang */}
       <div className="page-header">
         <div className="page-header-title">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
@@ -92,7 +94,7 @@ export const AdvanceListPage: React.FC = () => {
         </div>
       </div>
 
-      {/* KPI summaries */}
+      {/* Thẻ thống kê số liệu nhanh */}
       <div
         style={{
           display: 'grid',
@@ -119,7 +121,7 @@ export const AdvanceListPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Filter and Search */}
+      {/* Thanh tìm kiếm và bộ lọc */}
       <div
         className="card"
         style={{
@@ -176,7 +178,7 @@ export const AdvanceListPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Table */}
+      {/* Bảng danh sách đề xuất tạm ứng */}
       {loading ? (
         <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem 0' }}>
           <Loader2 size={36} className="animate-spin" color="var(--primary)" />
@@ -263,14 +265,26 @@ export const AdvanceListPage: React.FC = () => {
                     )}
                   </td>
                   <td style={{ textAlign: 'right' }}>
-                    <Link
-                      to={`/advance/${a._id}`}
-                      className="btn btn-secondary btn-sm"
-                      style={{ padding: '0.4rem 0.75rem' }}
-                    >
-                      <Eye size={14} />
-                      <span>Chi tiết</span>
-                    </Link>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <button
+                        type="button"
+                        onClick={() => setPrintProposal(a)}
+                        className="btn btn-ghost btn-sm"
+                        style={{ padding: '0.4rem 0.65rem', color: 'var(--accent-cyan)' }}
+                        title="Xem trước và In biểu mẫu PDF"
+                      >
+                        <Printer size={14} />
+                        <span>In PDF</span>
+                      </button>
+                      <Link
+                        to={`/advance/${a._id}`}
+                        className="btn btn-secondary btn-sm"
+                        style={{ padding: '0.4rem 0.75rem' }}
+                      >
+                        <Eye size={14} />
+                        <span>Chi tiết</span>
+                      </Link>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -278,6 +292,13 @@ export const AdvanceListPage: React.FC = () => {
           </table>
         </div>
       )}
+
+      {/* MODAL XEM TRƯỚC VÀ IN BIỂU MẪU ĐỀ NGHỊ TẠM ỨNG */}
+      <AdvancePrintModal
+        isOpen={!!printProposal}
+        onClose={() => setPrintProposal(null)}
+        proposal={printProposal}
+      />
     </div>
   );
 };

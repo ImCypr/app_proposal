@@ -101,7 +101,7 @@ const advanceProposalSchema = new mongoose.Schema({
   timestamps: true,
 });
 
-// Auto-generate proposal code
+// Tự động sinh mã đề xuất tạm ứng
 advanceProposalSchema.pre('save', async function () {
   if (!this.proposalCode) {
     const count = await mongoose.model('AdvanceProposal').countDocuments();
@@ -111,7 +111,7 @@ advanceProposalSchema.pre('save', async function () {
     this.proposalCode = `TU-${year}${month}-${String(count + 1).padStart(4, '0')}`;
   }
 
-  // Calculate total amount
+  // Tính tổng số tiền tạm ứng
   this.totalAmount = this.items.reduce((sum, item) => sum + item.soTien, 0);
 });
 
