@@ -171,7 +171,7 @@ export const PurchaseDetailPage: React.FC = () => {
       [itemId]: {
         name: supplier.name,
         price: supplier.price,
-        note: supplier.note,
+        note: supplier.note || (supplier.url ? `Nguồn: ${supplier.url}` : ''),
       },
     }));
     setProcurementPrices((prev) => ({
@@ -1169,9 +1169,40 @@ export const PurchaseDetailPage: React.FC = () => {
                                     {supp.name}
                                   </div>
 
-                                  <div style={{ fontSize: '0.725rem', color: 'var(--text-secondary)', marginBottom: '0.5rem', lineHeight: 1.35 }}>
-                                    {supp.note}
-                                  </div>
+                                  {supp.url && (
+                                    <div style={{ marginBottom: '0.45rem' }}>
+                                      <a
+                                        href={supp.url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        onClick={(e) => e.stopPropagation()}
+                                        style={{
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '0.35rem',
+                                          color: '#60a5fa',
+                                          fontSize: '0.725rem',
+                                          textDecoration: 'none',
+                                          fontWeight: 500,
+                                          backgroundColor: 'rgba(96, 165, 250, 0.12)',
+                                          padding: '0.2rem 0.5rem',
+                                          borderRadius: 'var(--radius-sm)',
+                                          border: '1px solid rgba(96, 165, 250, 0.25)',
+                                          maxWidth: '100%',
+                                        }}
+                                        title={supp.url}
+                                      >
+                                        <ExternalLink size={12} />
+                                        <span>Xem link báo giá</span>
+                                      </a>
+                                    </div>
+                                  )}
+
+                                  {supp.note && (
+                                    <div style={{ fontSize: '0.725rem', color: 'var(--text-secondary)', marginBottom: '0.5rem', lineHeight: 1.35 }}>
+                                      {supp.note}
+                                    </div>
+                                  )}
                                 </div>
 
                                 <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '0.5rem', marginTop: '0.25rem', display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>

@@ -18,6 +18,7 @@ export interface SupplierSuggestion {
   id: string;
   name: string;
   price: number;
+  url?: string;
   rating?: number;
   deliveryDays?: string;
   note?: string;

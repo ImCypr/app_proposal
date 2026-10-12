@@ -4,6 +4,7 @@ const dotenv = require('dotenv');
 const connectDB = require('./config/db');
 const seedData = require('./utils/seed');
 const User = require('./models/User');
+const aiSearch = require('./routes/aiSearchRoutes');
 
 // Đọc cấu hình biến môi trường
 dotenv.config();
@@ -48,6 +49,9 @@ app.use('/api/advance-proposals', require('./routes/advanceProposalRoutes'));
 app.use('/api/payment-proposals', require('./routes/paymentProposalRoutes'));
 app.use('/api/upload', require('./routes/uploadRoutes'));
 
+// Enpoint phụ trách việc tra giá bằng AI
+app.use('/api/ai-search', aiSearch);
+
 // Kiểm tra sức khỏe máy chủ
 app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', message: 'Hệ thống máy chủ đang hoạt động bình thường' });
@@ -62,6 +66,8 @@ app.post('/api/seed', async (req, res) => {
     res.status(500).json({ success: false, message: err.message });
   }
 });
+
+
 
 // Middleware xử lý lỗi tập trung
 app.use((err, req, res, next) => {

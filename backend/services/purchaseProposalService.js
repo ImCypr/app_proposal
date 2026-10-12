@@ -1,5 +1,6 @@
 const PurchaseProposal = require('../models/PurchaseProposal');
 const User = require('../models/User');
+const { researchPrice } = require('./aiSearchService');
 
 class PurchaseProposalService {
 
@@ -226,235 +227,63 @@ class PurchaseProposalService {
     const proposal = await PurchaseProposal.findById(proposalId);
     if (!proposal) throw new Error('Đề xuất không tồn tại');
 
-    const results = proposal.items.map((item) => {
-      const ten = (item.tenVatTu || '').toLowerCase();
-      const basePrice = item.donGiaDuKien || 100000;
-      let suppliers = [];
+    const results = [];
+    for (const item of proposal.items) {
+      try {
+        const suppliers = await researchPrice({
+          stt: item.stt,
+          tenVatTu: item.tenVatTu,
+          yeuCauKiThuat: item.yeuCauKiThuat,
+          soLuong: item.soLuong,
+          donGiaDuKien: item.donGiaDuKien,
+          phongBanSuDung: item.phongBanSuDung,
+        });
 
-      if (ten.includes('thép') || ten.includes('sắt') || ten.includes('inox') || ten.includes('kim loại')) {
-        suppliers = [
-          {
-            id: 'ncc_hp',
-            name: 'Tập Đoàn Thép Hòa Phát (Đại lý cấp 1)',
-            price: Math.round(basePrice * 0.94),
-            rating: 4.9,
-            deliveryDays: '1 - 2 ngày',
-            note: 'Giá sỉ tốt nhất công trình, chiết khấu cao cho số lượng lớn, đầy đủ CO/CQ.',
-            isBestChoice: true,
-          },
-          {
-            id: 'ncc_vnsteel',
-            name: 'Tổng Công Ty Thép Việt Nam (VNSTEEL)',
-            price: Math.round(basePrice * 0.97),
-            rating: 4.8,
-            deliveryDays: '2 - 3 ngày',
-            note: 'Thương hiệu uy tín lâu năm, tiêu chuẩn kiểm định quốc tế, miễn phí vận chuyển.',
-            isBestChoice: false,
-          },
-          {
-            id: 'ncc_pomina',
-            name: 'Công Ty CP Thép Pomina Miền Trung - Nam',
-            price: Math.round(basePrice * 0.95),
-            rating: 4.7,
-            deliveryDays: '1 - 2 ngày',
-            note: 'Chất lượng đồng đều, thanh toán linh hoạt 30 ngày.',
-            isBestChoice: false,
-          },
-        ];
-      } else if (ten.includes('xi măng') || ten.includes('cát') || ten.includes('bê tông') || ten.includes('vữa')) {
-        suppliers = [
-          {
-            id: 'ncc_hatiên',
-            name: 'Công Ty Xi Măng Vicem Hà Tiên',
-            price: Math.round(basePrice * 0.93),
-            rating: 4.9,
-            deliveryDays: 'Trong ngày',
-            note: 'Kho sẵn bến bãi, giao hàng tận chân công trình, giá tối ưu nhất dự án.',
-            isBestChoice: true,
-          },
-          {
-            id: 'ncc_nghison',
-            name: 'Xi Măng & Bê Tông Nghi Sơn Pro',
-            price: Math.round(basePrice * 0.96),
-            rating: 4.8,
-            deliveryDays: '1 - 2 ngày',
-            note: 'Cường độ cao, chuyên dụng cho công trình cao ốc & khách sạn ven biển.',
-            isBestChoice: false,
-          },
-          {
-            id: 'ncc_saigon_vlxd',
-            name: 'Tổng Kho Vật Liệu Xây Dựng Nam Thành',
-            price: Math.round(basePrice * 0.98),
-            rating: 4.7,
-            deliveryDays: '1 ngày',
-            note: 'Cung ứng đa dạng cát vàng, đá dăm, xi măng trọn gói một đầu mối.',
-            isBestChoice: false,
-          },
-        ];
-      } else if (ten.includes('gạch') || ten.includes('đá') || ten.includes('granite') || ten.includes('marble') || ten.includes('ốp lát')) {
-        suppliers = [
-          {
-            id: 'ncc_hoanggia_stone',
-            name: 'Tổng Kho Đá Granite & Marble Hoàng Gia Luxury',
-            price: Math.round(basePrice * 0.92),
-            rating: 4.9,
-            deliveryDays: '2 - 3 ngày',
-            note: 'Chuyên cung cấp đá tự nhiên nhập khẩu cho chuỗi khách sạn 5 sao, cắt quy cách chuẩn xác.',
-            isBestChoice: true,
-          },
-          {
-            id: 'ncc_dongtam',
-            name: 'Tập Đoàn Gạch Men & Đá Granite Đồng Tâm',
-            price: Math.round(basePrice * 0.96),
-            rating: 4.8,
-            deliveryDays: '2 - 4 ngày',
-            note: 'Chống mài mòn, chống trơn trượt chuẩn châu Âu, màu sắc bền đẹp.',
-            isBestChoice: false,
-          },
-          {
-            id: 'ncc_viglacera',
-            name: 'Tổng Kho Gạch Ốp Lát Viglacera Miền Nam',
-            price: Math.round(basePrice * 0.95),
-            rating: 4.8,
-            deliveryDays: '1 - 2 ngày',
-            note: 'Sẵn hàng kho lớn, hỗ trợ đổi trả nếu bể vỡ trong quá trình bốc dỡ.',
-            isBestChoice: false,
-          },
-        ];
-      } else if (ten.includes('sơn') || ten.includes('chống thấm') || ten.includes('bột trét')) {
-        suppliers = [
-          {
-            id: 'ncc_dulux',
-            name: 'Trung Tâm Phân Phối Sơn Dulux Professional',
-            price: Math.round(basePrice * 0.94),
-            rating: 4.9,
-            deliveryDays: 'Trong ngày',
-            note: 'Dòng sơn kháng kiềm cao cấp, chống nấm mốc khí hậu biển, cam kết chính hãng 100%.',
-            isBestChoice: true,
-          },
-          {
-            id: 'ncc_kova',
-            name: 'Tổng Đại Lý Sơn & Chống Thấm KOVA Nano',
-            price: Math.round(basePrice * 0.95),
-            rating: 4.8,
-            deliveryDays: '1 ngày',
-            note: 'Chống thấm tường đứng và sàn mái vượt trội, chứng nhận an toàn xanh.',
-            isBestChoice: false,
-          },
-          {
-            id: 'ncc_jotun',
-            name: 'Nhà Phân Phối Sơn Công Nghiệp Jotun Việt Nam',
-            price: Math.round(basePrice * 0.98),
-            rating: 4.8,
-            deliveryDays: '1 - 2 ngày',
-            note: 'Bảo hành màng sơn 10 năm, hỗ trợ máy pha màu vi tính tự động.',
-            isBestChoice: false,
-          },
-        ];
-      } else if (ten.includes('vệ sinh') || ten.includes('vòi') || ten.includes('lavabo') || ten.includes('bồn cầu')) {
-        suppliers = [
-          {
-            id: 'ncc_toto',
-            name: 'Showroom Giải Pháp Khách Sạn TOTO Việt Nam',
-            price: Math.round(basePrice * 0.95),
-            rating: 4.9,
-            deliveryDays: '2 - 3 ngày',
-            note: 'Tiêu chuẩn vệ sinh khách sạn 5 sao, men sứ CeFiONtect chống bám bẩn, bảo hành 3 năm.',
-            isBestChoice: true,
-          },
-          {
-            id: 'ncc_inax',
-            name: 'Trung Tâm Phân Phối Thiết Bị Vệ Sinh Inax Project',
-            price: Math.round(basePrice * 0.92),
-            rating: 4.8,
-            deliveryDays: '1 - 2 ngày',
-            note: 'Giá thành hợp lý, phụ kiện dễ thay thế, tiết kiệm nước tối đa.',
-            isBestChoice: false,
-          },
-          {
-            id: 'ncc_kohler',
-            name: 'Tổng Đại Lý Thiết Bị Phòng Tắm Kohler & Bravat',
-            price: Math.round(basePrice * 0.98),
-            rating: 4.9,
-            deliveryDays: '3 - 5 ngày',
-            note: 'Đẳng cấp kiến trúc sang trọng, phù hợp hạng mục phòng VIP resort.',
-            isBestChoice: false,
-          },
-        ];
-      } else if (ten.includes('đèn') || ten.includes('điện') || ten.includes('dây điện') || ten.includes('cáp') || ten.includes('chiếu sáng')) {
-        suppliers = [
-          {
-            id: 'ncc_philips',
-            name: 'Chiếu Sáng Kiến Trúc Philips Lighting Pro',
-            price: Math.round(basePrice * 0.93),
-            rating: 4.9,
-            deliveryDays: '1 - 2 ngày',
-            note: 'Chỉ số hoàn màu CRI > 90, ánh sáng ấm chuẩn resort nghỉ dưỡng, tiết kiệm 70% điện.',
-            isBestChoice: true,
-          },
-          {
-            id: 'ncc_cadivi',
-            name: 'Tổng Kho Cáp Điện Cadivi & Thiết Bị Schneider',
-            price: Math.round(basePrice * 0.96),
-            rating: 4.9,
-            deliveryDays: 'Trong ngày',
-            note: 'Ruột đồng nguyên chất 99.9%, vỏ bọc chống cháy chậm lan, an toàn tuyệt đối.',
-            isBestChoice: false,
-          },
-          {
-            id: 'ncc_rangdong',
-            name: 'Công Ty CP Đèn LED & Smart Lighting Rạng Đông',
-            price: Math.round(basePrice * 0.91),
-            rating: 4.7,
-            deliveryDays: '1 ngày',
-            note: 'Mức giá cạnh tranh, sẵn số lượng lớn thay thế bảo dưỡng định kỳ.',
-            isBestChoice: false,
-          },
-        ];
-      } else {
-        // Mặt hàng khác: Gợi ý 3 nhà cung cấp địa phương uy tín theo lĩnh vực
-        suppliers = [
-          {
-            id: `ncc_opt1_${item._id}`,
-            name: `Công Ty TNHH Cung Ứng & Thương Mại Đại Dương Xanh`,
-            price: Math.round(basePrice * 0.93),
-            rating: 4.9,
-            deliveryDays: '1 - 2 ngày',
-            note: 'Giá sỉ cạnh tranh, sẵn kho số lượng theo yêu cầu, giao hàng miễn phí nội thành.',
-            isBestChoice: true,
-          },
-          {
-            id: `ncc_opt2_${item._id}`,
-            name: `Tổng Kho Vật Tư Công Trình Tân Phong Thịnh`,
-            price: Math.round(basePrice * 0.97),
-            rating: 4.8,
-            deliveryDays: '2 - 3 ngày',
-            note: 'Hàng chính hãng có nguồn gốc xuất xứ rõ ràng, đầy đủ hóa đơn chứng từ VAT.',
-            isBestChoice: false,
-          },
-          {
-            id: `ncc_opt3_${item._id}`,
-            name: `Trung Tâm Thiết Bị & Vật Tư Phúc Hưng Group`,
-            price: Math.round(basePrice * 0.95),
-            rating: 4.7,
-            deliveryDays: '1 - 2 ngày',
-            note: 'Chính sách bảo hành đổi trả trong 30 ngày, công nợ linh hoạt.',
-            isBestChoice: false,
-          },
-        ];
+        // Tìm nhà cung cấp có đơn giá tốt nhất để gắn cờ isBestChoice
+        let lowestPrice = Infinity;
+        let bestIdx = 0;
+        suppliers.forEach((s, idx) => {
+          if (s.price > 0 && s.price < lowestPrice) {
+            lowestPrice = s.price;
+            bestIdx = idx;
+          }
+        });
+
+        const formattedSuppliers = suppliers.map((s, idx) => ({
+          id: `ncc_${item._id}_${idx}`,
+          name: s.name,
+          price: s.price || item.donGiaDuKien || 0,
+          url: s.url || '',
+          rating: 4.8,
+          deliveryDays: '1 - 2 ngày',
+          note: s.url ? `Nguồn khảo giá: ${s.url}` : 'Đã xác minh thị trường',
+          isBestChoice: idx === bestIdx,
+        }));
+
+        results.push({
+          itemId: item._id,
+          stt: item.stt,
+          tenVatTu: item.tenVatTu,
+          yeuCauKiThuat: item.yeuCauKiThuat,
+          phongBanSuDung: item.phongBanSuDung,
+          soLuong: item.soLuong,
+          donGiaDuKien: item.donGiaDuKien,
+          suppliers: formattedSuppliers,
+        });
+      } catch (itemErr) {
+        console.error(`Lỗi khảo giá AI cho vật tư ${item.tenVatTu}:`, itemErr.message || itemErr);
+        results.push({
+          itemId: item._id,
+          stt: item.stt,
+          tenVatTu: item.tenVatTu,
+          yeuCauKiThuat: item.yeuCauKiThuat,
+          phongBanSuDung: item.phongBanSuDung,
+          soLuong: item.soLuong,
+          donGiaDuKien: item.donGiaDuKien,
+          suppliers: [],
+        });
       }
-
-      return {
-        itemId: item._id,
-        stt: item.stt,
-        tenVatTu: item.tenVatTu,
-        yeuCauKiThuat: item.yeuCauKiThuat,
-        phongBanSuDung: item.phongBanSuDung,
-        soLuong: item.soLuong,
-        donGiaDuKien: item.donGiaDuKien,
-        suppliers,
-      };
-    });
+    }
 
     return results;
   }
