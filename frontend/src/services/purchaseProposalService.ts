@@ -40,13 +40,38 @@ export const purchaseProposalService = {
 
   submitProcurement: async (
     id: string,
-    items: Array<{ _id?: string; donGiaThucTe: number; nhaCungCap?: string; ghiChuNhaCungCap?: string }>,
+    items: Array<{
+      _id?: string;
+      donGiaThucTe: number;
+      nhaCungCap?: string;
+      ghiChuNhaCungCap?: string;
+      supplierQuotes?: any[];
+    }>,
     pricingMethod?: 'ai' | 'manual',
-    quotationAttachments?: any[]
+    quotationAttachments?: any[],
+    priceJustification?: string
   ): Promise<PurchaseProposal> => {
+    // [LUỒNG MỚI] Gửi kèm supplierQuotes (3-4 báo giá) và priceJustification (văn bản giải trình)
     const res = await api.put<{ success: boolean; data: PurchaseProposal }>(
       `/purchase-proposals/${id}/procurement`,
-      { items, pricingMethod, quotationAttachments }
+      { items, pricingMethod, quotationAttachments, priceJustification }
+    );
+    return res.data.data;
+  },
+
+  // [LUỒNG MỚI] Bước 4: Thu mua nộp hồ sơ thực hiện mua sắm (ứng trước / hóa đơn / hợp đồng)
+  submitProcurementExecution: async (
+    id: string,
+    executionData: {
+      actionType: 'advance' | 'invoice' | 'contract';
+      invoiceInfo?: any;
+      contractInfo?: any;
+      advanceProposalId?: string | null;
+    }
+  ): Promise<PurchaseProposal> => {
+    const res = await api.put<{ success: boolean; data: PurchaseProposal }>(
+      `/purchase-proposals/${id}/procurement-execution`,
+      executionData
     );
     return res.data.data;
   },
@@ -63,6 +88,22 @@ export const purchaseProposalService = {
     const res = await api.put<{ success: boolean; data: PurchaseProposal }>(
       `/purchase-proposals/${id}/final-approve`,
       { comment }
+    );
+    return res.data.data;
+  },
+
+  // [LUỒNG MỚI] Người tạo đơn nộp lại yêu cầu sau khi bị từ chối
+  resubmit: async (
+    id: string,
+    data: {
+      items?: any[];
+      necessityReason?: string;
+      necessityAttachments?: any[];
+    }
+  ): Promise<PurchaseProposal> => {
+    const res = await api.put<{ success: boolean; data: PurchaseProposal }>(
+      `/purchase-proposals/${id}/resubmit`,
+      data
     );
     return res.data.data;
   },

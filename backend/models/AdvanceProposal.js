@@ -41,6 +41,13 @@ const advanceProposalSchema = new mongoose.Schema({
     ref: 'Department',
     required: true,
   },
+  // [LUỒNG MỚI] Liên kết với Đề xuất Mua sắm (nếu tạm ứng để mua sắm vật tư)
+  // [LUỒNG CŨ] Đề xuất tạm ứng không liên kết với đề xuất mua sắm
+  purchaseProposal: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'PurchaseProposal',
+    default: null,
+  },
   // Bank info of the creator for receiving advance
   bankAccount: {
     accountNumber: { type: String, required: [true, 'Số tài khoản là bắt buộc'] },

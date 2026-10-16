@@ -79,6 +79,37 @@ const paymentProposalSchema = new mongoose.Schema(
     // 5. TÀI LIỆU, CHỨNG TỪ, HÓA ĐƠN BÁO GIÁ ĐÍNH KÈM
     attachments: [mongoose.Schema.Types.Mixed],
 
+    // [LUỒNG MỚI] Hồ sơ đề xuất thanh toán bao gồm thêm:
+    // 5.1. Danh mục yêu cầu vật tư được thanh toán (kế thừa từ đơn mua sắm gốc)
+    items: [{
+      stt: { type: Number },
+      tenVatTu: { type: String, required: true },
+      soLuong: { type: Number, default: 1 },
+      donGiaThucTe: { type: Number, default: 0 },
+      nhaCungCap: { type: String, default: '' },
+      yeuCauKiThuat: { type: String, default: '' },
+      phongBanSuDung: { type: String, default: '' },
+      thanhTien: { type: Number, default: 0 },
+    }],
+
+    // 5.2. Bảng báo giá đối tác từ khâu khảo giá của Thu mua
+    quotationAttachments: [mongoose.Schema.Types.Mixed],
+
+    // 5.3. Hợp đồng kinh tế và tệp văn bản hợp đồng đính kèm
+    contractInfo: {
+      contractNumber: { type: String, default: '' },
+      partnerName: { type: String, default: '' },
+      files: [mongoose.Schema.Types.Mixed],
+    },
+    contractAttachments: [mongoose.Schema.Types.Mixed],
+
+    // 5.4. Hóa đơn VAT do Thu mua cung cấp
+    invoiceInfo: {
+      invoiceNumber: { type: String, default: '' },
+      invoiceDate: { type: Date, default: null },
+      files: [mongoose.Schema.Types.Mixed],
+    },
+
     // 6. TRẠNG THÁI & LUỒNG PHÊ DUYỆT
     status: {
       type: String,

@@ -53,7 +53,22 @@ export const PurchaseListPage: React.FC = () => {
 
   const totalProposals = proposals.length;
   const pendingCount = proposals.filter((p) =>
-    ['pending_approval', 'procurement_review', 'accounting_review', 'pending_final_approval', 'pending_payment', 'pending_payment_approval'].includes(p.status)
+    [
+      // [LUỒNG MỚI]
+      'pending_tp_approval',
+      'procurement_pricing',
+      'pending_director_approval',
+      'pending_chairman_approval',
+      'procurement_execution',
+      'pending_accounting',
+      // [LUỒNG CŨ]
+      'pending_approval',
+      'procurement_review',
+      'accounting_review',
+      'pending_final_approval',
+      'pending_payment',
+      'pending_payment_approval',
+    ].includes(p.status)
   ).length;
   const disbursingCount = proposals.filter((p) => p.status === 'disbursing').length;
   const completedCount = proposals.filter((p) => p.status === 'completed').length;
@@ -166,10 +181,19 @@ export const PurchaseListPage: React.FC = () => {
             onChange={(e) => setStatusFilter(e.target.value)}
           >
             <option value="all">Tất cả trạng thái</option>
-            <option value="pending_approval">Chờ duyệt sơ bộ</option>
-            <option value="procurement_review">Thu mua khảo giá</option>
-            <option value="accounting_review">Kế toán xác nhận</option>
-            <option value="pending_final_approval">Chờ duyệt giá chốt</option>
+            {/* [LUỒNG MỚI] */}
+            <option value="pending_tp_approval">Chờ Trưởng phòng duyệt</option>
+            <option value="rejected_by_tp">TP từ chối (Chờ sửa lại)</option>
+            <option value="procurement_pricing">Thu mua lập báo giá</option>
+            <option value="pending_director_approval">Chờ Giám đốc duyệt mua (đơn &le; 10tr)</option>
+            <option value="pending_chairman_approval">Chờ Chủ tịch duyệt mua (đơn &gt; 10tr)</option>
+            <option value="procurement_execution">Thu mua đang thực hiện</option>
+            <option value="pending_accounting">Chờ Kế toán xử lý</option>
+            {/* [LUỒNG CŨ - Tương thích dữ liệu cũ] */}
+            <option value="pending_approval">Chờ duyệt sơ bộ (cũ)</option>
+            <option value="procurement_review">Thu mua khảo giá (cũ)</option>
+            <option value="accounting_review">Kế toán xác nhận (cũ)</option>
+            <option value="pending_final_approval">Chờ duyệt giá chốt (cũ)</option>
             <option value="pending_payment">Chờ kế toán lập thanh toán</option>
             <option value="pending_payment_approval">Chờ duyệt thanh toán</option>
             <option value="disbursing">Đang giải ngân</option>
@@ -244,7 +268,7 @@ export const PurchaseListPage: React.FC = () => {
                     <span className="badge badge-secondary">{p.items?.length || 0} mục</span>
                   </td>
                   <td style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
-                    {formatCurrency(p.totalEstimatedAmount)}
+                    {formatCurrency(p.totalEstimatedAmount > 0 ? p.totalEstimatedAmount : (p.totalActualAmount || 0))}
                   </td>
                   <td>
                     {p.totalActualAmount ? (

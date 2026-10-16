@@ -26,8 +26,12 @@ export const PurchasePrintModal: React.FC<PurchasePrintModalProps> = ({
   if (!isOpen || !proposal) return null;
 
   // Tính toán số liệu tổng
-  const totalEstimated = proposal.totalEstimatedAmount || 0;
-  const totalActual = proposal.totalActualAmount ?? totalEstimated;
+  const totalActual = (proposal.totalActualAmount && proposal.totalActualAmount > 0)
+    ? proposal.totalActualAmount
+    : (proposal.items?.reduce((s, it) => s + ((Number(it.soLuong) || 1) * (Number(it.donGiaThucTe) || 0)), 0) || 0);
+  const totalEstimated = (proposal.totalEstimatedAmount && proposal.totalEstimatedAmount > 0)
+    ? proposal.totalEstimatedAmount
+    : (totalActual > 0 ? totalActual : 0);
 
   // Tìm người phê duyệt cuối cùng hoặc người duyệt đã chấp thuận
   const approvedStep = [...(proposal.approvalFlow || [])]
@@ -467,9 +471,11 @@ export const PurchasePrintModal: React.FC<PurchasePrintModalProps> = ({
               <tbody>
                 {proposal.items && proposal.items.length > 0 ? (
                   proposal.items.map((item, index) => {
-                    const estLine = item.soLuong * (item.donGiaDuKien || 0);
+                    const qty = Number(item.soLuong) || 1;
+                    const unitPrice = (item.donGiaDuKien && item.donGiaDuKien > 0) ? item.donGiaDuKien : (item.donGiaThucTe || 0);
+                    const estLine = qty * unitPrice;
                     const actLine = item.donGiaThucTe !== null && item.donGiaThucTe !== undefined
-                      ? item.soLuong * item.donGiaThucTe
+                      ? qty * item.donGiaThucTe
                       : null;
                     return (
                       <tr key={index}>
@@ -486,10 +492,10 @@ export const PurchasePrintModal: React.FC<PurchasePrintModalProps> = ({
                           )}
                         </td>
                         <td style={{ border: '1px solid #000', padding: '6px 4px', textAlign: 'center', fontWeight: 'bold' }}>
-                          {item.soLuong}
+                          {qty}
                         </td>
                         <td style={{ border: '1px solid #000', padding: '6px 6px', textAlign: 'right' }}>
-                          {formatCurrency(item.donGiaDuKien)}
+                          {formatCurrency(unitPrice)}
                         </td>
                         <td style={{ border: '1px solid #000', padding: '6px 6px', textAlign: 'right', fontWeight: 'bold' }}>
                           {formatCurrency(estLine)}

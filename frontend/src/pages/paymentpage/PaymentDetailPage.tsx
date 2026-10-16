@@ -24,6 +24,10 @@ import {
   Banknote,
   UploadCloud,
   Printer,
+  Layers,
+  FileCheck,
+  Receipt,
+  Crown,
 } from 'lucide-react';
 
 export const PaymentDetailPage: React.FC = () => {
@@ -196,9 +200,12 @@ export const PaymentDetailPage: React.FC = () => {
   }
 
   // Quyền hành động
+  const isOverTenMillion = (proposal.amount || 0) > 10000000;
+  const isLeaderPending = proposal.status === 'pending_director' || proposal.status === 'pending_chairman';
   const canApprove =
-    (proposal.status === 'pending_director' && (user?.role === 'giam_doc' || user?.role === 'chu_tich')) ||
-    (proposal.status === 'pending_chairman' && user?.role === 'chu_tich');
+    isLeaderPending &&
+    ((isOverTenMillion && user?.role === 'chu_tich') ||
+     (!isOverTenMillion && (user?.role === 'giam_doc' || user?.role === 'chu_tich')));
   const canDisburse = proposal.status === 'pending_disbursement' && user?.role === 'ke_toan';
 
   const purchaseProposal = typeof proposal.purchaseProposal === 'object' ? proposal.purchaseProposal : null;
@@ -245,12 +252,12 @@ export const PaymentDetailPage: React.FC = () => {
           {canApprove && (
             <>
               <button onClick={() => setIsApproveOpen(true)} className="btn btn-success">
-                <CheckCircle2 size={16} />
-                <span>Phê Duyệt Chi</span>
+                {user?.role === 'chu_tich' ? <Crown size={16} /> : <CheckCircle2 size={16} />}
+                <span>{user?.role === 'chu_tich' ? 'Chủ Tịch Xác Nhận Duyệt Chi' : 'GĐ Xác Nhận Duyệt Chi'}</span>
               </button>
               <button onClick={() => setIsRejectOpen(true)} className="btn btn-danger">
                 <XCircle size={16} />
-                <span>Từ Chối</span>
+                <span>Từ Chối Duyệt Chi</span>
               </button>
             </>
           )}
@@ -471,13 +478,360 @@ export const PaymentDetailPage: React.FC = () => {
             </div>
           </div>
 
+          {/* [LUỒNG MỚI] 1. THẺ HỒ SƠ CĂN CỨ: DANH MỤC YÊU CẦU VẬT TƯ ĐƯỢC THANH TOÁN */}
+          {(() => {
+            const displayItems = (proposal.items && proposal.items.length > 0)
+              ? proposal.items
+              : ((purchaseProposal as any)?.items || []);
+            if (displayItems.length === 0) return null;
+
+            return (
+              <div className="card" style={{ padding: '1.5rem', border: '1px solid rgba(99, 102, 241, 0.2)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Layers size={18} color="var(--primary)" />
+                    <h3 style={{ fontSize: '1.05rem', color: '#ffffff' }}>
+                      Danh Mục Yêu Cầu Vật Tư Mua Sắm ({displayItems.length} hạng mục)
+                    </h3>
+                  </div>
+                  {purchaseProposal && (
+                    <span className="badge badge-info" style={{ fontSize: '0.75rem' }}>
+                      Căn cứ đơn {purchaseProposal.proposalCode}
+                    </span>
+                  )}
+                </div>
+
+                <div className="table-container" style={{ overflowX: 'auto', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)' }}>
+                  <table className="table" style={{ fontSize: '0.825rem', margin: 0 }}>
+                    <thead>
+                      <tr>
+                        <th style={{ width: '40px', textAlign: 'center' }}>STT</th>
+                        <th>Tên Vật Tư & Quy Cách</th>
+                        <th style={{ textAlign: 'center' }}>Số Lượng</th>
+                        <th style={{ textAlign: 'right' }}>Đơn Giá Thực Tế</th>
+                        <th style={{ textAlign: 'right' }}>Thành Tiền</th>
+                        <th>Nhà Cung Cấp</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {displayItems.map((it: any, idx: number) => {
+                        const qty = Number(it.soLuong) || 1;
+                        const price = Number(it.donGiaThucTe) || 0;
+                        const lineTotal = it.thanhTien || (qty * price);
+                        return (
+                          <tr key={idx}>
+                            <td style={{ textAlign: 'center', fontWeight: 600 }}>{it.stt || idx + 1}</td>
+                            <td>
+                              <div style={{ fontWeight: 600, color: '#ffffff' }}>{it.tenVatTu}</div>
+                              {it.yeuCauKiThuat && (
+                                <div style={{ fontSize: '0.725rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
+                                  YC: {it.yeuCauKiThuat}
+                                </div>
+                              )}
+                            </td>
+                            <td style={{ textAlign: 'center', fontWeight: 700 }} className="font-mono">
+                              {qty}
+                            </td>
+                            <td style={{ textAlign: 'right', color: 'var(--text-secondary)' }} className="font-mono">
+                              {price > 0 ? formatCurrency(price) : 'Chờ cập nhật'}
+                            </td>
+                            <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--success)' }} className="font-mono">
+                              {formatCurrency(lineTotal)}
+                            </td>
+                            <td style={{ fontSize: '0.8rem', color: 'var(--accent-cyan)' }}>
+                              {it.nhaCungCap || '—'}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    <tfoot>
+                      <tr style={{ backgroundColor: 'rgba(255, 255, 255, 0.03)', fontWeight: 700 }}>
+                        <td colSpan={2} style={{ textAlign: 'right' }}>Tổng cộng:</td>
+                        <td style={{ textAlign: 'center' }} className="font-mono">
+                          {displayItems.reduce((s: number, it: any) => s + (Number(it.soLuong) || 1), 0)}
+                        </td>
+                        <td></td>
+                        <td style={{ textAlign: 'right', color: 'var(--success)', fontSize: '0.925rem' }} className="font-mono">
+                          {formatCurrency(
+                            displayItems.reduce(
+                              (s: number, it: any) => s + ((it.thanhTien) || ((Number(it.soLuong) || 1) * (Number(it.donGiaThucTe) || 0))),
+                              0
+                            )
+                          )}
+                        </td>
+                        <td></td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* [LUỒNG MỚI] 2. THẺ BẢNG BÁO GIÁ ĐỐI TÁC / NHÀ CUNG CẤP */}
+          {(() => {
+            const quotes = (proposal.quotationAttachments && proposal.quotationAttachments.length > 0)
+              ? proposal.quotationAttachments
+              : ((purchaseProposal as any)?.quotationAttachments || []);
+            if (quotes.length === 0) return null;
+
+            return (
+              <div className="card" style={{ padding: '1.5rem', border: '1px solid rgba(6, 182, 212, 0.2)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+                  <FileText size={18} color="var(--accent-cyan)" />
+                  <h3 style={{ fontSize: '1.05rem', color: '#ffffff' }}>
+                    Bảng Báo Giá Đối Tác ({quotes.length} tài liệu)
+                  </h3>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: '0.75rem' }}>
+                  {quotes.map((qFile: any, qIdx: number) => (
+                    <div
+                      key={qIdx}
+                      style={{
+                        padding: '0.75rem 1rem',
+                        backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: 'var(--radius-md)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', overflow: 'hidden' }}>
+                        <FileText size={16} color="var(--accent-cyan)" />
+                        <span
+                          style={{ fontSize: '0.8rem', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', maxWidth: '130px' }}
+                          title={qFile.name}
+                        >
+                          {qFile.name}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                        <button
+                          type="button"
+                          onClick={() => setPreviewAttachment({ name: qFile.name, url: qFile.url, type: qFile.type })}
+                          className="btn btn-ghost btn-sm"
+                          style={{ padding: '0.3rem' }}
+                          title="Xem bảng báo giá"
+                        >
+                          <Eye size={14} />
+                        </button>
+                        <a
+                          href={qFile.url}
+                          download={qFile.name}
+                          className="btn btn-ghost btn-sm"
+                          style={{ padding: '0.3rem' }}
+                          title="Tải về"
+                        >
+                          <Download size={14} />
+                        </a>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* [LUỒNG MỚI] 3. THẺ HỢP ĐỒNG KINH TẾ */}
+          {(() => {
+            const contractData = proposal.contractInfo || (purchaseProposal as any)?.procurementExecution?.contractInfo;
+            const contractFiles = (proposal.contractAttachments && proposal.contractAttachments.length > 0)
+              ? proposal.contractAttachments
+              : (contractData?.files || []);
+
+            if (!contractData?.contractNumber && !contractData?.partnerName && contractFiles.length === 0) {
+              return null;
+            }
+
+            return (
+              <div className="card" style={{ padding: '1.5rem', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+                  <FileCheck size={18} color="var(--success)" />
+                  <h3 style={{ fontSize: '1.05rem', color: '#ffffff' }}>
+                    Hợp Đồng Kinh Tế
+                  </h3>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', marginBottom: contractFiles.length > 0 ? '1rem' : 0 }}>
+                  {contractData?.contractNumber && (
+                    <div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.2rem' }}>
+                        Số Hiệu Hợp Đồng
+                      </div>
+                      <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#ffffff' }} className="font-mono">
+                        {contractData.contractNumber}
+                      </div>
+                    </div>
+                  )}
+                  {contractData?.partnerName && (
+                    <div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.2rem' }}>
+                        Đối Tác Ký Kết
+                      </div>
+                      <div style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                        {contractData.partnerName}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {contractFiles.length > 0 && (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: '0.75rem', marginTop: '0.5rem' }}>
+                    {contractFiles.map((cFile: any, cIdx: number) => (
+                      <div
+                        key={cIdx}
+                        style={{
+                          padding: '0.75rem 1rem',
+                          backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                          border: '1px solid var(--border-color)',
+                          borderRadius: 'var(--radius-md)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', overflow: 'hidden' }}>
+                          <FileCheck size={16} color="var(--success)" />
+                          <span
+                            style={{ fontSize: '0.8rem', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', maxWidth: '130px' }}
+                            title={cFile.name}
+                          >
+                            {cFile.name}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <button
+                            type="button"
+                            onClick={() => setPreviewAttachment({ name: cFile.name, url: cFile.url, type: cFile.type })}
+                            className="btn btn-ghost btn-sm"
+                            style={{ padding: '0.3rem' }}
+                            title="Xem hợp đồng"
+                          >
+                            <Eye size={14} />
+                          </button>
+                          <a
+                            href={cFile.url}
+                            download={cFile.name}
+                            className="btn btn-ghost btn-sm"
+                            style={{ padding: '0.3rem' }}
+                            title="Tải về"
+                          >
+                            <Download size={14} />
+                          </a>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* [LUỒNG MỚI] 4. THẺ HÓA ĐƠN VAT / CHỨNG TỪ BÊN THU MUA CUNG CẤP */}
+          {(() => {
+            const invoiceData = proposal.invoiceInfo || (purchaseProposal as any)?.procurementExecution?.invoiceInfo;
+            const invoiceFiles = (invoiceData?.files && invoiceData.files.length > 0)
+              ? invoiceData.files
+              : [];
+
+            if (!invoiceData?.invoiceNumber && !invoiceData?.invoiceDate && invoiceFiles.length === 0) {
+              return null;
+            }
+
+            return (
+              <div className="card" style={{ padding: '1.5rem', border: '1px solid rgba(245, 158, 11, 0.25)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+                  <Receipt size={18} color="#f59e0b" />
+                  <h3 style={{ fontSize: '1.05rem', color: '#ffffff' }}>
+                    Hóa Đơn VAT & Chứng Từ Bên Thu Mua
+                  </h3>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', marginBottom: invoiceFiles.length > 0 ? '1rem' : 0 }}>
+                  {invoiceData?.invoiceNumber && (
+                    <div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.2rem' }}>
+                        Số Hóa Đơn VAT
+                      </div>
+                      <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#f59e0b' }} className="font-mono">
+                        {invoiceData.invoiceNumber}
+                      </div>
+                    </div>
+                  )}
+                  {invoiceData?.invoiceDate && (
+                    <div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.2rem' }}>
+                        Ngày Lập Hóa Đơn
+                      </div>
+                      <div style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                        {formatDate(invoiceData.invoiceDate)}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {invoiceFiles.length > 0 && (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: '0.75rem', marginTop: '0.5rem' }}>
+                    {invoiceFiles.map((iFile: any, iIdx: number) => (
+                      <div
+                        key={iIdx}
+                        style={{
+                          padding: '0.75rem 1rem',
+                          backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                          border: '1px solid var(--border-color)',
+                          borderRadius: 'var(--radius-md)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', overflow: 'hidden' }}>
+                          <Receipt size={16} color="#f59e0b" />
+                          <span
+                            style={{ fontSize: '0.8rem', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', maxWidth: '130px' }}
+                            title={iFile.name}
+                          >
+                            {iFile.name}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <button
+                            type="button"
+                            onClick={() => setPreviewAttachment({ name: iFile.name, url: iFile.url, type: iFile.type })}
+                            className="btn btn-ghost btn-sm"
+                            style={{ padding: '0.3rem' }}
+                            title="Xem hóa đơn"
+                          >
+                            <Eye size={14} />
+                          </button>
+                          <a
+                            href={iFile.url}
+                            download={iFile.name}
+                            className="btn btn-ghost btn-sm"
+                            style={{ padding: '0.3rem' }}
+                            title="Tải về"
+                          >
+                            <Download size={14} />
+                          </a>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
           {/* Thẻ tài liệu đính kèm */}
           {proposal.attachments && proposal.attachments.length > 0 && (
             <div className="card" style={{ padding: '1.5rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
                 <Paperclip size={18} color="var(--primary)" />
                 <h3 style={{ fontSize: '1.05rem', color: '#ffffff' }}>
-                  Chứng Từ Đính Kèm ({proposal.attachments.length})
+                  Chứng Từ Đính Kèm Khác ({proposal.attachments.length})
                 </h3>
               </div>
 
@@ -680,7 +1034,11 @@ export const PaymentDetailPage: React.FC = () => {
       </div>
 
       {/* MODAL PHÊ DUYỆT CHI */}
-      <Modal isOpen={isApproveOpen} onClose={() => setIsApproveOpen(false)} title="Phê Duyệt Chi Đề Xuất Thanh Toán">
+      <Modal
+        isOpen={isApproveOpen}
+        onClose={() => setIsApproveOpen(false)}
+        title={user?.role === 'chu_tich' ? 'Chủ Tịch Phê Duyệt Chi Đề Xuất Thanh Toán' : 'Giám Đốc Phê Duyệt Chi Đề Xuất Thanh Toán'}
+      >
         <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
           Xác nhận phê duyệt chi cho đề xuất thanh toán <strong>{proposal.proposalCode}</strong> với
           số tiền <strong style={{ color: '#ffffff' }}>{formatCurrency(proposal.amount)}</strong>?

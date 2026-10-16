@@ -9,3 +9,5 @@ export * from './TagLogo';
 export * from './PurchasePrintModal';
 export * from './PaymentPrintModal';
 export * from './AdvancePrintModal';
+export * from './ErrorBoundary';
+export * from './WebReferenceModal';

@@ -32,9 +32,29 @@ export const ApprovalPage: React.FC = () => {
         paymentProposalService.getAll(),
       ]);
 
-      const myPurchases = purchases.filter(
-        (p) => p.currentApprovalRole === user?.role
-      );
+      const myPurchases = purchases.filter((p) => {
+        const totalAmount = (p.totalActualAmount && p.totalActualAmount > 0)
+          ? p.totalActualAmount
+          : (p.totalEstimatedAmount || 0);
+        const isOverTenMillion = totalAmount > 10000000;
+        const isPendingLeaderApproval = ['pending_director_approval', 'pending_chairman_approval', 'pending_final_approval'].includes(p.status);
+
+        // [LUỒNG MỚI] Nếu đơn đang chờ duyệt mua:
+        // Đơn > 10 triệu: Chủ tịch duyệt, Giám đốc KHÔNG duyệt
+        if (isPendingLeaderApproval) {
+          if (isOverTenMillion) {
+            if (user?.role === 'chu_tich') return true;
+            if (user?.role === 'giam_doc') return false;
+          } else {
+            if (user?.role === 'giam_doc' || user?.role === 'chu_tich') return true;
+          }
+        }
+
+        if (p.currentApprovalRole === user?.role) return true;
+        // [LUỒNG MỚI] Kế toán nhận bản sao theo dõi khi Thu mua nộp báo giá cho Giám đốc / Chủ tịch
+        if (user?.role === 'ke_toan' && isPendingLeaderApproval) return true;
+        return false;
+      });
 
       const myAdvances = advances.filter(
         (a) =>
@@ -111,22 +131,26 @@ export const ApprovalPage: React.FC = () => {
           <ShoppingCart size={15} />
           <span>Mua Sắm ({purchaseList.length})</span>
         </button>
-        <button
-          className={`btn ${activeTab === 'advance' ? 'btn-primary' : 'btn-ghost'}`}
-          onClick={() => setActiveTab('advance')}
-          style={{ fontSize: '0.825rem' }}
-        >
-          <Banknote size={15} />
-          <span>Tạm Ứng ({advanceList.length})</span>
-        </button>
-        <button
-          className={`btn ${activeTab === 'payment' ? 'btn-primary' : 'btn-ghost'}`}
-          onClick={() => setActiveTab('payment')}
-          style={{ fontSize: '0.825rem' }}
-        >
-          <CreditCard size={15} />
-          <span>Thanh Toán ({paymentList.length})</span>
-        </button>
+        {user && ['thu_mua', 'ke_toan', 'giam_doc', 'chu_tich', 'admin'].includes(user.role) && (
+          <button
+            className={`btn ${activeTab === 'advance' ? 'btn-primary' : 'btn-ghost'}`}
+            onClick={() => setActiveTab('advance')}
+            style={{ fontSize: '0.825rem' }}
+          >
+            <Banknote size={15} />
+            <span>Tạm Ứng ({advanceList.length})</span>
+          </button>
+        )}
+        {user && ['ke_toan', 'giam_doc', 'chu_tich', 'admin'].includes(user.role) && (
+          <button
+            className={`btn ${activeTab === 'payment' ? 'btn-primary' : 'btn-ghost'}`}
+            onClick={() => setActiveTab('payment')}
+            style={{ fontSize: '0.825rem' }}
+          >
+            <CreditCard size={15} />
+            <span>Thanh Toán ({paymentList.length})</span>
+          </button>
+        )}
       </div>
 
       {loading ? (
@@ -177,7 +201,7 @@ export const ApprovalPage: React.FC = () => {
                         <td style={{ fontWeight: 600 }}>{p.creator?.fullName}</td>
                         <td>{p.department?.name}</td>
                         <td style={{ fontWeight: 700, color: 'var(--text-primary)' }} className="font-mono">
-                          {formatCurrency(p.totalEstimatedAmount)}
+                          {formatCurrency((p.totalActualAmount && p.totalActualAmount > 0) ? p.totalActualAmount : p.totalEstimatedAmount)}
                         </td>
                         <td>
                           <StatusBadge status={p.status} type="purchase" />

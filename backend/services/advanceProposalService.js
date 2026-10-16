@@ -56,6 +56,7 @@ class AdvanceProposalService {
     // Sử dụng thông tin tài khoản ngân hàng của người tạo hoặc tài khoản được chỉ định
     const bankAccount = data.bankAccount || creator.bankAccount;
 
+    // [LUỒNG MỚI] Cho phép liên kết với đề xuất mua sắm (nếu có)
     const proposal = await AdvanceProposal.create({
       creator: creatorId,
       department: creator.department._id,
@@ -64,11 +65,13 @@ class AdvanceProposalService {
       approvalFlow,
       currentApprovalRole,
       status,
+      purchaseProposal: data.purchaseProposal || null,
     });
 
     return await AdvanceProposal.findById(proposal._id)
       .populate('creator', 'fullName email role')
-      .populate('department', 'name');
+      .populate('department', 'name')
+      .populate('purchaseProposal', 'proposalCode totalEstimatedAmount totalActualAmount');
   }
 
   async getAll(userId, userRole, userDepartment) {
@@ -94,6 +97,7 @@ class AdvanceProposalService {
       .populate('department', 'name')
       .populate('approvalFlow.approver', 'fullName role')
       .populate('disbursements.processedBy', 'fullName')
+      .populate('purchaseProposal', 'proposalCode totalEstimatedAmount totalActualAmount')
       .sort({ createdAt: -1 });
   }
 
@@ -103,7 +107,8 @@ class AdvanceProposalService {
       .populate('department', 'name')
       .populate('approvalFlow.approver', 'fullName role')
       .populate('disbursements.processedBy', 'fullName')
-      .populate('settlement.confirmedBy', 'fullName');
+      .populate('settlement.confirmedBy', 'fullName')
+      .populate('purchaseProposal', 'proposalCode totalEstimatedAmount totalActualAmount items');
 
     if (!proposal) throw new Error('Đề xuất không tồn tại');
     return proposal;

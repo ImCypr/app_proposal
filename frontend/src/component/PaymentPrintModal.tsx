@@ -268,12 +268,15 @@ export const PaymentPrintModal: React.FC<PaymentPrintModalProps> = ({
             >
               GIẤY ĐỀ NGHỊ THANH TOÁN
             </div>
-            <div style={{ textAlign: 'center', fontSize: '10.5pt', fontStyle: 'italic', marginBottom: '22px' }}>
-              {purchaseCode ? `(Căn cứ đơn mua sắm vật tư số: ${purchaseCode})` : '(Thanh toán chi phí phục vụ hoạt động công ty)'}
+            <div style={{ textAlign: 'center', fontSize: '10.5pt', fontStyle: 'italic', marginBottom: '16px' }}>
+              {purchaseCode ? `(Căn cứ đơn mua sắm vật tư số: ${purchaseCode}` : '(Thanh toán chi phí phục vụ hoạt động công ty'}
+              {proposal.contractInfo?.contractNumber ? ` • Hợp đồng kinh tế số: ${proposal.contractInfo.contractNumber}` : ''}
+              {proposal.quotationAttachments && proposal.quotationAttachments.length > 0 ? ` • Kèm theo ${proposal.quotationAttachments.length} bản báo giá đối tác` : ''}
+              {purchaseCode ? ')' : ''}
             </div>
 
             {/* Nội dung */}
-            <div style={{ marginBottom: '20px', lineHeight: 1.8, fontSize: '11pt' }}>
+            <div style={{ marginBottom: '16px', lineHeight: 1.7, fontSize: '11pt' }}>
               <div>
                 <strong>Kính gửi:</strong> Ban Giám Đốc, Phòng Kế toán - Tài chính
               </div>
@@ -291,6 +294,12 @@ export const PaymentPrintModal: React.FC<PaymentPrintModalProps> = ({
                   <span>{proposal.installmentNote}</span>
                 </div>
               )}
+              {proposal.contractInfo?.contractNumber && (
+                <div style={{ display: 'flex' }}>
+                  <span style={{ minWidth: '170px' }}><strong>Hợp đồng kinh tế:</strong></span>
+                  <span>Số: <strong>{proposal.contractInfo.contractNumber}</strong> {proposal.contractInfo.partnerName ? `— Đối tác: ${proposal.contractInfo.partnerName}` : ''}</span>
+                </div>
+              )}
               <div style={{ display: 'flex' }}>
                 <span style={{ minWidth: '170px' }}><strong>Số tiền đề nghị:</strong></span>
                 <span style={{ fontSize: '12pt', fontWeight: 'bold' }}>{formatCurrency(proposal.amount)}</span>
@@ -304,17 +313,63 @@ export const PaymentPrintModal: React.FC<PaymentPrintModalProps> = ({
                 <span>{proposal.paymentMethod === 'bank_transfer' ? 'Chuyển khoản qua ngân hàng' : 'Tiền mặt'}</span>
               </div>
 
+              {/* [LUỒNG MỚI] BẢNG DANH MỤC YÊU CẦU VẬT TƯ CHI TIẾT TRONG BẢN IN */}
+              {(() => {
+                const pItems = (proposal.items && proposal.items.length > 0)
+                  ? proposal.items
+                  : ((proposal.purchaseProposal as any)?.items || []);
+                if (pItems.length === 0) return null;
+
+                return (
+                  <div style={{ marginTop: '12px', marginBottom: '12px' }}>
+                    <div style={{ fontWeight: 'bold', fontSize: '10.5pt', marginBottom: '4px' }}>
+                      DANH MỤC VẬT TƯ ĐỀ NGHỊ THANH TOÁN:
+                    </div>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10pt', border: '1px solid #333' }}>
+                      <thead>
+                        <tr style={{ backgroundColor: '#f3f4f6' }}>
+                          <th style={{ border: '1px solid #333', padding: '4px 6px', width: '35px', textAlign: 'center' }}>STT</th>
+                          <th style={{ border: '1px solid #333', padding: '4px 6px', textAlign: 'left' }}>Tên vật tư</th>
+                          <th style={{ border: '1px solid #333', padding: '4px 6px', width: '45px', textAlign: 'center' }}>SL</th>
+                          <th style={{ border: '1px solid #333', padding: '4px 6px', textAlign: 'right', width: '90px' }}>Đơn giá</th>
+                          <th style={{ border: '1px solid #333', padding: '4px 6px', textAlign: 'right', width: '105px' }}>Thành tiền</th>
+                          <th style={{ border: '1px solid #333', padding: '4px 6px', textAlign: 'left', width: '130px' }}>Nhà cung cấp</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {pItems.map((it: any, idx: number) => {
+                          const qty = Number(it.soLuong) || 1;
+                          const price = Number(it.donGiaThucTe) || 0;
+                          const lineTotal = it.thanhTien || (qty * price);
+                          return (
+                            <tr key={idx}>
+                              <td style={{ border: '1px solid #333', padding: '3px 6px', textAlign: 'center' }}>{it.stt || idx + 1}</td>
+                              <td style={{ border: '1px solid #333', padding: '3px 6px' }}>{it.tenVatTu}</td>
+                              <td style={{ border: '1px solid #333', padding: '3px 6px', textAlign: 'center' }}>{qty}</td>
+                              <td style={{ border: '1px solid #333', padding: '3px 6px', textAlign: 'right' }}>{formatCurrency(price)}</td>
+                              <td style={{ border: '1px solid #333', padding: '3px 6px', textAlign: 'right', fontWeight: 'bold' }}>{formatCurrency(lineTotal)}</td>
+                              <td style={{ border: '1px solid #333', padding: '3px 6px' }}>{it.nhaCungCap || '—'}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })()}
+
               {/* Thông tin người thụ hưởng */}
               <div
                 style={{
-                  marginTop: '12px',
-                  padding: '10px 14px',
+                  marginTop: '10px',
+                  padding: '8px 12px',
                   border: '1px solid #333',
                   backgroundColor: '#f9fafb',
                   borderRadius: '4px',
+                  fontSize: '10.5pt',
                 }}
               >
-                <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>THÔNG TIN NGƯỜI THỤ HƯỞNG:</div>
+                <div style={{ fontWeight: 'bold', marginBottom: '3px' }}>THÔNG TIN NGƯỜI THỤ HƯỞNG:</div>
                 <div>• Tên người nhận: <strong>{proposal.beneficiary?.name}</strong></div>
                 {proposal.beneficiary?.accountNumber && (
                   <div>• Số tài khoản: <strong>{proposal.beneficiary.accountNumber}</strong> tại Ngân hàng: <strong>{proposal.beneficiary.bankName}</strong> {proposal.beneficiary.branch ? `(${proposal.beneficiary.branch})` : ''}</div>

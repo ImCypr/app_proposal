@@ -371,6 +371,38 @@ export const AdvanceDetailPage: React.FC = () => {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '1.75rem' }}>
         {/* Cột bên trái: Chi tiết tạm ứng & Báo cáo hoàn ứng */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
+          {/* [LUỒNG MỚI] Thông báo liên kết với đơn mua sắm vật tư gốc */}
+          {proposal.purchaseProposal && (
+            <div
+              style={{
+                padding: '0.9rem 1.25rem',
+                backgroundColor: 'rgba(6, 182, 212, 0.08)',
+                border: '1px solid rgba(6, 182, 212, 0.25)',
+                borderRadius: 'var(--radius-md)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '0.75rem',
+              }}
+            >
+              <div>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Đơn tạm ứng khởi tạo từ Đề Xuất Mua Sắm:</span>
+                <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#ffffff', marginTop: '0.2rem' }}>
+                  {proposal.purchaseProposal.proposalCode || 'Đơn mua sắm'}
+                </div>
+              </div>
+              <Link
+                to={`/purchase/${proposal.purchaseProposal._id || proposal.purchaseProposal}`}
+                className="btn btn-secondary btn-sm"
+                style={{ gap: '0.35rem' }}
+              >
+                <ExternalLink size={14} />
+                <span>Xem Đề Xuất Mua Sắm Gốc</span>
+              </Link>
+            </div>
+          )}
+
           {/* Thẻ thông tin người tạo & Tài khoản ngân hàng thụ hưởng */}
           <div className="card" style={{ padding: '1.25rem 1.5rem' }}>
             <div

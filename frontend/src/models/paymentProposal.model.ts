@@ -39,6 +39,33 @@ export interface PaymentProposal {
   amountInWords?: string;
   installmentNote?: string;
   attachments?: Array<{ name: string; url: string; size?: number; type?: string }>;
+  // [LUỒNG MỚI] Hồ sơ đề xuất thanh toán bao gồm:
+  // 1. Danh mục yêu cầu vật tư
+  items?: Array<{
+    stt?: number;
+    tenVatTu: string;
+    soLuong: number;
+    donGiaThucTe: number;
+    nhaCungCap?: string;
+    yeuCauKiThuat?: string;
+    phongBanSuDung?: string;
+    thanhTien?: number;
+  }>;
+  // 2. Bảng báo giá đối tác
+  quotationAttachments?: Array<{ name: string; url: string; size?: number; type?: string }>;
+  // 3. Hợp đồng kinh tế
+  contractInfo?: {
+    contractNumber?: string;
+    partnerName?: string;
+    files?: Array<{ name: string; url: string; size?: number; type?: string }>;
+  };
+  contractAttachments?: Array<{ name: string; url: string; size?: number; type?: string }>;
+  // 4. Hóa đơn VAT do Thu mua cung cấp
+  invoiceInfo?: {
+    invoiceNumber?: string;
+    invoiceDate?: string | null;
+    files?: Array<{ name: string; url: string; size?: number; type?: string }>;
+  };
   status: PaymentProposalStatus;
   currentApprovalRole?: string | null;
   approvalFlow: PaymentApprovalStep[];
@@ -63,4 +90,26 @@ export interface CreatePaymentProposalDto {
   amountInWords?: string;
   installmentNote?: string;
   attachments?: Array<{ name: string; url: string; size?: number; type?: string }>;
+  items?: Array<{
+    stt?: number;
+    tenVatTu: string;
+    soLuong: number;
+    donGiaThucTe: number;
+    nhaCungCap?: string;
+    yeuCauKiThuat?: string;
+    phongBanSuDung?: string;
+    thanhTien?: number;
+  }>;
+  quotationAttachments?: Array<{ name: string; url: string; size?: number; type?: string }>;
+  contractInfo?: {
+    contractNumber?: string;
+    partnerName?: string;
+    files?: Array<{ name: string; url: string; size?: number; type?: string }>;
+  };
+  contractAttachments?: Array<{ name: string; url: string; size?: number; type?: string }>;
+  invoiceInfo?: {
+    invoiceNumber?: string;
+    invoiceDate?: string | null;
+    files?: Array<{ name: string; url: string; size?: number; type?: string }>;
+  };
 }

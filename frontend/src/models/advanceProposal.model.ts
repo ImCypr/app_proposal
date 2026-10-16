@@ -56,6 +56,8 @@ export interface AdvanceProposal {
   totalDisbursed: number;
   settlement?: SettlementData;
   rejectionReason?: string;
+  // [LUỒNG MỚI] Liên kết với đề xuất mua sắm
+  purchaseProposal?: any;
   createdAt: string;
   updatedAt: string;
 }
@@ -67,6 +69,8 @@ export interface CreateAdvanceProposalDto {
     mucDich: string;
     soTien: number;
   }>;
+  // [LUỒNG MỚI] Liên kết với đề xuất mua sắm
+  purchaseProposal?: string;
 }
 
 export interface SubmitSettlementDto {

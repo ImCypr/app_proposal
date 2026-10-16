@@ -58,6 +58,20 @@ class PurchaseProposalController {
     }
   }
 
+  // [LUỒNG MỚI] Người tạo đơn nộp lại yêu cầu vật tư sau khi bị Trưởng phòng từ chối
+  async resubmit(req, res) {
+    try {
+      const proposal = await purchaseProposalService.resubmit(
+        req.params.id,
+        req.user._id,
+        req.body
+      );
+      res.status(200).json({ success: true, data: proposal });
+    } catch (error) {
+      res.status(400).json({ success: false, message: error.message });
+    }
+  }
+
   async aiSuggestPricing(req, res) {
     try {
       const suggestions = await purchaseProposalService.aiSuggestPricing(req.params.id);
@@ -69,12 +83,29 @@ class PurchaseProposalController {
 
   async submitProcurement(req, res) {
     try {
+      // [LUỒNG MỚI] Bổ sung priceJustification (văn bản giải trình của Thu mua)
+      // [LUỒNG CŨ] Chỉ truyền items, pricingMethod, quotationAttachments
       const proposal = await purchaseProposalService.submitProcurement(
         req.params.id,
         req.user._id,
         req.body.items,
         req.body.pricingMethod,
-        req.body.quotationAttachments
+        req.body.quotationAttachments,
+        req.body.priceJustification
+      );
+      res.status(200).json({ success: true, data: proposal });
+    } catch (error) {
+      res.status(400).json({ success: false, message: error.message });
+    }
+  }
+
+  // [LUỒNG MỚI] Bước 4: Thu mua nộp hồ sơ thực hiện mua sắm (ứng trước / hóa đơn / hợp đồng)
+  async submitProcurementExecution(req, res) {
+    try {
+      const proposal = await purchaseProposalService.submitProcurementExecution(
+        req.params.id,
+        req.user._id,
+        req.body
       );
       res.status(200).json({ success: true, data: proposal });
     } catch (error) {

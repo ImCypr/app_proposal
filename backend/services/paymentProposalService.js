@@ -19,6 +19,11 @@ class PaymentProposalService {
       amountInWords = '',
       installmentNote = '',
       attachments = [],
+      items: inputItems,
+      quotationAttachments: inputQuotationAttachments,
+      contractInfo: inputContractInfo,
+      contractAttachments: inputContractAttachments,
+      invoiceInfo: inputInvoiceInfo,
     } = data;
 
     // 1. Kiểm tra đơn đề xuất mua sắm vật tư căn cứ
@@ -35,6 +40,99 @@ class PaymentProposalService {
     const paymentAmount = Number(amount);
     if (!paymentAmount || paymentAmount <= 0) {
       throw new Error('Số tiền thanh toán phải lớn hơn 0');
+    }
+
+    // [LUỒNG MỚI] Tự động đồng bộ và kế thừa hồ sơ thanh toán:
+    // 1. Danh mục yêu cầu vật tư (kế thừa từ đơn mua sắm gốc nếu không truyền)
+    let finalItems = [];
+    if (inputItems && Array.isArray(inputItems) && inputItems.length > 0) {
+      finalItems = inputItems;
+    } else if (purchaseProposal.items && purchaseProposal.items.length > 0) {
+      finalItems = purchaseProposal.items.map((it, idx) => ({
+        stt: it.stt || idx + 1,
+        tenVatTu: it.tenVatTu,
+        soLuong: Number(it.soLuong) || 1,
+        donGiaThucTe: Number(it.donGiaThucTe) || 0,
+        nhaCungCap: it.nhaCungCap || '',
+        yeuCauKiThuat: it.yeuCauKiThuat || '',
+        phongBanSuDung: it.phongBanSuDung || '',
+        thanhTien: (Number(it.soLuong) || 1) * (Number(it.donGiaThucTe) || 0),
+      }));
+    }
+
+    // 2. Bảng báo giá đối tác từ Thu mua
+    let finalQuotationAttachments = [];
+    if (inputQuotationAttachments && Array.isArray(inputQuotationAttachments) && inputQuotationAttachments.length > 0) {
+      finalQuotationAttachments = inputQuotationAttachments;
+    } else if (purchaseProposal.quotationAttachments && purchaseProposal.quotationAttachments.length > 0) {
+      finalQuotationAttachments = purchaseProposal.quotationAttachments;
+    }
+
+    // 3. Hợp đồng kinh tế từ khâu Thu mua mua sắm
+    const executionContract = purchaseProposal.procurementExecution?.contractInfo || {};
+    const finalContractInfo = inputContractInfo || {
+      contractNumber: executionContract.contractNumber || '',
+      partnerName: executionContract.partnerName || '',
+      files: executionContract.files || [],
+    };
+    const finalContractAttachments = inputContractAttachments || (finalContractInfo.files || []);
+
+    // 4. Hóa đơn VAT do Thu mua cung cấp
+    const executionInvoice = purchaseProposal.procurementExecution?.invoiceInfo || {};
+    const finalInvoiceInfo = inputInvoiceInfo || {
+      invoiceNumber: executionInvoice.invoiceNumber || '',
+      invoiceDate: executionInvoice.invoiceDate || null,
+      files: executionInvoice.files || [],
+    };
+
+    // [LUỒNG MỚI] TỰ ĐỘNG GOM TOÀN BỘ FILE HỢP ĐỒNG / HÓA ĐƠN DO THU MUA CUNG CẤP VÀO ATTACHMENTS
+    // Kế toán không cần phải tải lên lại thủ công
+    const autoCollectedAttachments = [...(attachments || [])];
+    const existingUrls = new Set(autoCollectedAttachments.map((a) => a.url));
+
+    // Thêm các file hóa đơn do Thu mua nộp
+    if (finalInvoiceInfo.files && Array.isArray(finalInvoiceInfo.files)) {
+      finalInvoiceInfo.files.forEach((f) => {
+        if (f.url && !existingUrls.has(f.url)) {
+          existingUrls.add(f.url);
+          autoCollectedAttachments.push({
+            name: f.name ? (f.name.includes('[Hóa đơn]') ? f.name : `[Hóa đơn Thu mua] ${f.name}`) : 'Hóa đơn VAT',
+            url: f.url,
+            size: f.size,
+            type: f.type,
+          });
+        }
+      });
+    }
+
+    // Thêm các file hợp đồng do Thu mua nộp
+    if (finalContractInfo.files && Array.isArray(finalContractInfo.files)) {
+      finalContractInfo.files.forEach((f) => {
+        if (f.url && !existingUrls.has(f.url)) {
+          existingUrls.add(f.url);
+          autoCollectedAttachments.push({
+            name: f.name ? (f.name.includes('[Hợp đồng]') ? f.name : `[Hợp đồng kinh tế] ${f.name}`) : 'Hợp đồng kinh tế',
+            url: f.url,
+            size: f.size,
+            type: f.type,
+          });
+        }
+      });
+    }
+
+    // Thêm các file bảng báo giá do Thu mua nộp
+    if (finalQuotationAttachments && Array.isArray(finalQuotationAttachments)) {
+      finalQuotationAttachments.forEach((f) => {
+        if (f.url && !existingUrls.has(f.url)) {
+          existingUrls.add(f.url);
+          autoCollectedAttachments.push({
+            name: f.name ? (f.name.includes('[Báo giá]') ? f.name : `[Bảng báo giá] ${f.name}`) : 'Bảng báo giá',
+            url: f.url,
+            size: f.size,
+            type: f.type,
+          });
+        }
+      });
     }
 
     // 2. Xác định cấp duyệt chi dựa trên hạn mức số tiền
@@ -62,7 +160,7 @@ class PaymentProposalService {
       },
     ];
 
-    // 3. Khởi tạo bản ghi đề xuất thanh toán
+    // 3. Khởi tạo bản ghi đề xuất thanh toán đầy đủ hồ sơ (báo giá, hợp đồng, hóa đơn, yêu cầu vật tư)
     const paymentProposal = new PaymentProposal({
       purchaseProposal: purchaseProposalId,
       creator: creatorId,
@@ -73,7 +171,12 @@ class PaymentProposalService {
       amount: paymentAmount,
       amountInWords,
       installmentNote,
-      attachments,
+      attachments: autoCollectedAttachments,
+      items: finalItems,
+      quotationAttachments: finalQuotationAttachments,
+      contractInfo: finalContractInfo,
+      contractAttachments: finalContractAttachments,
+      invoiceInfo: finalInvoiceInfo,
       status: initialStatus,
       currentApprovalRole: initialRole,
       approvalFlow,

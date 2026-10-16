@@ -146,6 +146,22 @@ export const getPurchaseStatusInfo = (status: string): StatusMeta => {
   switch (status) {
     case 'draft':
       return { label: 'Bản nháp', badgeClass: 'badge-secondary', dotColor: '#94a3b8' };
+    // [LUỒNG MỚI]
+    case 'pending_tp_approval':
+      return { label: 'Chờ Trưởng phòng duyệt', badgeClass: 'badge-warning', dotColor: '#f59e0b' };
+    case 'rejected_by_tp':
+      return { label: 'TP từ chối (Chờ sửa lại)', badgeClass: 'badge-danger', dotColor: '#ef4444' };
+    case 'procurement_pricing':
+      return { label: 'Thu mua lập báo giá', badgeClass: 'badge-warning', dotColor: '#f59e0b' };
+    case 'pending_director_approval':
+      return { label: 'Chờ Giám đốc duyệt mua', badgeClass: 'badge-purple', dotColor: '#a855f7' };
+    case 'pending_chairman_approval':
+      return { label: 'Chờ Chủ tịch duyệt mua', badgeClass: 'badge-purple', dotColor: '#c084fc' };
+    case 'procurement_execution':
+      return { label: 'Thu mua đang thực hiện', badgeClass: 'badge-info', dotColor: '#3b82f6' };
+    case 'pending_accounting':
+      return { label: 'Chờ Kế toán xử lý', badgeClass: 'badge-purple', dotColor: '#a855f7' };
+    // [LUỒNG CŨ]
     case 'pending_approval':
       return { label: 'Chờ duyệt sơ bộ', badgeClass: 'badge-warning', dotColor: '#f59e0b' };
     case 'approved_initial':

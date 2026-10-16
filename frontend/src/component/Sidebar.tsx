@@ -26,13 +26,18 @@ export const Sidebar: React.FC = () => {
       label: 'Đề Xuất Mua Sắm',
       icon: <ShoppingCart size={19} />,
     },
-    {
-      to: '/advance',
-      label: 'Đề Xuất Tạm Ứng',
-      icon: <Banknote size={19} />,
-    },
+    // Mục "Đề Xuất Tạm Ứng" chỉ hiển thị cho Thu mua, Kế toán, Giám đốc, Chủ tịch
+    ...(user && ['thu_mua', 'ke_toan', 'giam_doc', 'chu_tich', 'admin'].includes(user.role)
+      ? [
+          {
+            to: '/advance',
+            label: 'Đề Xuất Tạm Ứng',
+            icon: <Banknote size={19} />,
+          },
+        ]
+      : []),
     // Mục "Đề Xuất Thanh Toán" hiển thị cho Kế toán, Giám đốc, Chủ tịch
-    ...(user && ['ke_toan', 'giam_doc', 'chu_tich'].includes(user.role)
+    ...(user && ['ke_toan', 'giam_doc', 'chu_tich', 'admin'].includes(user.role)
       ? [
           {
             to: '/payment',
@@ -50,7 +55,7 @@ export const Sidebar: React.FC = () => {
     },
     {
       to: '/profile',
-      label: 'Hồ Sơ & Ngân Hàng',
+      label: user && ['ke_toan', 'thu_mua'].includes(user.role) ? 'Hồ Sơ & Ngân Hàng' : 'Hồ Sơ Cá Nhân',
       icon: <UserCheck size={19} />,
     },
   ];

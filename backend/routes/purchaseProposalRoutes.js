@@ -12,11 +12,18 @@ router.get('/:id', purchaseProposalController.getById);
 
 // Quy trình duyệt sơ bộ
 router.put('/:id/approve', restrictTo('truong_phong', 'giam_doc', 'chu_tich'), purchaseProposalController.approve);
-router.put('/:id/reject', restrictTo('truong_phong', 'giam_doc', 'chu_tich'), purchaseProposalController.reject);
+// [LUỒNG MỚI] Tất cả các bên trong quy trình đều có thể từ chối đơn để trả về khâu trước đó
+// [CŨ] router.put('/:id/reject', restrictTo('truong_phong', 'giam_doc', 'chu_tich'), purchaseProposalController.reject);
+router.put('/:id/reject', restrictTo('truong_phong', 'thu_mua', 'giam_doc', 'chu_tich', 'ke_toan'), purchaseProposalController.reject);
+// [LUỒNG MỚI] Người tạo nộp lại đơn sau khi bị từ chối (giữ nguyên mã đơn cũ)
+router.put('/:id/resubmit', purchaseProposalController.resubmit);
 
 // Khảo sát giá thu mua & AI tra cứu nhà cung cấp
 router.get('/:id/ai-pricing', restrictTo('thu_mua', 'giam_doc', 'chu_tich'), purchaseProposalController.aiSuggestPricing);
 router.put('/:id/procurement', restrictTo('thu_mua'), purchaseProposalController.submitProcurement);
+
+// [LUỒNG MỚI] Bước 4: Thu mua nộp hồ sơ thực hiện mua sắm (ứng trước / hóa đơn / hợp đồng)
+router.put('/:id/procurement-execution', restrictTo('thu_mua'), purchaseProposalController.submitProcurementExecution);
 
 // Kế toán xác nhận và Lãnh đạo phê duyệt giá chốt
 router.put('/:id/accounting-confirm', restrictTo('ke_toan'), purchaseProposalController.accountingConfirm);
