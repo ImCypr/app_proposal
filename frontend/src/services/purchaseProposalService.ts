@@ -63,10 +63,13 @@ export const purchaseProposalService = {
   submitProcurementExecution: async (
     id: string,
     executionData: {
-      actionType: 'advance' | 'invoice' | 'contract';
+      actionType: 'advance' | 'invoice' | 'contract' | 'multiple';
       invoiceInfo?: any;
       contractInfo?: any;
       advanceProposalId?: string | null;
+      isAdvanced?: boolean;
+      advanceAmount?: number;
+      advanceNote?: string;
     }
   ): Promise<PurchaseProposal> => {
     const res = await api.put<{ success: boolean; data: PurchaseProposal }>(
