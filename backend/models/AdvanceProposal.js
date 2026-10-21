@@ -48,6 +48,31 @@ const advanceProposalSchema = new mongoose.Schema({
     ref: 'PurchaseProposal',
     default: null,
   },
+  // [LUỒNG MỚI] Thông tin Hợp đồng kinh tế gắn với đợt tạm ứng (tạm ứng hợp đồng)
+  contractInfo: {
+    contractNumber: { type: String, default: '' },
+    partnerName: { type: String, default: '' },
+    contractAmount: { type: Number, default: 0 },
+    files: [mongoose.Schema.Types.Mixed],
+  },
+  // [LUỒNG MỚI] Thông tin Hóa đơn thụ hưởng gắn với đợt tạm ứng (tra cứu 2 chiều)
+  beneficiaryInvoice: {
+    purchaseProposal: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'PurchaseProposal',
+      default: null,
+    },
+    proposalCode: { type: String, default: '' },
+    invoiceDate: { type: Date, default: null },
+    invoiceAmount: { type: Number, default: 0 },
+    files: [mongoose.Schema.Types.Mixed],
+    note: { type: String, default: '' },
+    // [LUỒNG MỚI] Thông tin hóa đơn thực tế sau khi Thu mua đi mua sắm về
+    actualInvoiceDate: { type: Date, default: null },
+    actualInvoiceAmount: { type: Number, default: null },
+    actualInvoiceFiles: [mongoose.Schema.Types.Mixed],
+    actualSubmittedAt: { type: Date, default: null },
+  },
   // Bank info of the creator for receiving advance
   bankAccount: {
     accountNumber: { type: String, required: [true, 'Số tài khoản là bắt buộc'] },
@@ -68,10 +93,10 @@ const advanceProposalSchema = new mongoose.Schema({
       'pending_accounting',     // Chờ kế toán duyệt
       'accounting_approved',    // Kế toán đã duyệt
       'disbursing',             // Đang giải ngân
-      'disbursed',              // Đã giải ngân
+      'disbursed',              // Đã giải ngân (chuyển tiền cho thu mua)
       'pending_settlement',     // Chờ hoàn tạm ứng
-      'settlement_submitted',   // Đã nộp hoàn tạm ứng
-      'completed',              // Hoàn thành
+      'settlement_submitted',   // Thu mua đã xác nhận hoàn tạm ứng (chờ kế toán duyệt)
+      'completed',              // Hoàn thành hồ sơ tạm ứng
       'rejected',               // Từ chối chung
       'rejected_by_director',   // Giám đốc từ chối -> trả về người tạo làm lại
       'rejected_by_chairman',   // Chủ tịch từ chối -> trả về người tạo làm lại
@@ -94,11 +119,28 @@ const advanceProposalSchema = new mongoose.Schema({
   settlement: {
     type: {
       type: String,
-      enum: ['surplus', 'deficit', 'exact'], // thừa, thiếu, đủ
+      enum: ['surplus', 'deficit', 'exact'], // surplus: thừa (thu mua hoàn lại), deficit: thiếu (công ty chi thêm), exact: đủ
       default: null,
     },
-    amount: { type: Number, default: null }, // Số tiền thừa/thiếu
-    attachments: [mongoose.Schema.Types.Mixed], // File đính kèm (Object {name, url, size, type} hoặc String)
+    amount: { type: Number, default: null }, // Số tiền thừa/thiếu chênh lệch
+    invoiceAmount: { type: Number, default: null }, // Giá trị hóa đơn thực tế
+    advanceAmount: { type: Number, default: null }, // Số tiền đã tạm ứng
+    diffAmount: { type: Number, default: null }, // Chênh lệch (invoiceAmount - advanceAmount)
+    // [LUỒNG MỚI] Kế toán đề xuất hoàn tạm ứng đối với số tiền chênh lệch
+    requestedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    requestedAt: { type: Date, default: null },
+    accountantNote: { type: String, default: '' },
+    // [LUỒNG MỚI] Bước xác nhận hoàn tạm ứng của Thu mua (đã nhận / đã chuyển tiền)
+    purchaserConfirmed: { type: Boolean, default: false },
+    purchaserConfirmType: {
+      type: String,
+      enum: ['received_additional', 'refunded_surplus', 'exact_matched', null],
+      default: null,
+    },
+    purchaserConfirmProof: [mongoose.Schema.Types.Mixed], // Biên lai chuyển tiền hoàn ứng hoặc biên nhận tiền thêm
+    purchaserNote: { type: String, default: '' },
+    purchaserConfirmedAt: { type: Date, default: null },
+    attachments: [mongoose.Schema.Types.Mixed], // File hóa đơn / chứng từ đính kèm
     note: { type: String, default: '' },
     submittedAt: { type: Date, default: null },
     confirmedAt: { type: Date, default: null },

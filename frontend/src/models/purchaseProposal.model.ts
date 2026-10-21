@@ -72,6 +72,7 @@ export interface ProcurementExecution {
   invoiceInfo?: {
     invoiceNumber?: string;
     invoiceDate?: string | null;
+    invoiceAmount?: number;
     files?: any[];
   };
   contractInfo?: {

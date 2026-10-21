@@ -64,6 +64,7 @@ export interface PaymentProposal {
   invoiceInfo?: {
     invoiceNumber?: string;
     invoiceDate?: string | null;
+    invoiceAmount?: number;
     files?: Array<{ name: string; url: string; size?: number; type?: string }>;
   };
   status: PaymentProposalStatus;
@@ -111,6 +112,7 @@ export interface CreatePaymentProposalDto {
   invoiceInfo?: {
     invoiceNumber?: string;
     invoiceDate?: string | null;
+    invoiceAmount?: number;
     files?: Array<{ name: string; url: string; size?: number; type?: string }>;
   };
 }

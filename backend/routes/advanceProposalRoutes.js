@@ -19,6 +19,7 @@ router.put('/:id/resubmit', advanceProposalController.resubmit);
 router.put('/:id/accounting-disburse', restrictTo('ke_toan'), advanceProposalController.accountingApproveAndDisburse);
 
 // Hoàn ứng (Nộp, Từ chối và Xác nhận hoàn tạm ứng)
+router.put('/:id/request-settlement', restrictTo('ke_toan'), advanceProposalController.requestSettlement);
 router.put('/:id/settlement', advanceProposalController.submitSettlement);
 router.put('/:id/reject-settlement', restrictTo('ke_toan'), advanceProposalController.rejectSettlement);
 router.put('/:id/confirm-settlement', restrictTo('ke_toan'), advanceProposalController.confirmSettlement);

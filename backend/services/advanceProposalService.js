@@ -1,12 +1,13 @@
 const AdvanceProposal = require('../models/AdvanceProposal');
 const User = require('../models/User');
+const PurchaseProposal = require('../models/PurchaseProposal');
 
 class AdvanceProposalService {
 
   /**
    * [LUỒNG MỚI] Thiết lập luồng phê duyệt đơn tạm ứng dựa trên hạn mức số tiền:
-   * - Đơn <= 10.000.000 VNĐ: Sếp (Giám đốc) duyệt -> Kế toán duyệt & giải ngân -> Hoàn tạm ứng -> Kế toán xác nhận
-   * - Đơn > 10.000.000 VNĐ: Chủ tịch duyệt (bỏ qua Giám đốc) -> Kế toán duyệt & giải ngân -> Hoàn tạm ứng -> Kế toán xác nhận
+   * - Đơn <= 10.000.000 VNĐ: Sếp (Giám đốc) duyệt -> Kế toán duyệt & giải ngân -> Thu mua nộp HĐ & xác nhận hoàn tạm ứng -> Kế toán xác nhận hoàn tất hồ sơ
+   * - Đơn > 10.000.000 VNĐ: Chủ tịch duyệt (bỏ qua Giám đốc) -> Kế toán duyệt & giải ngân -> Thu mua nộp HĐ & xác nhận hoàn tạm ứng -> Kế toán xác nhận hoàn tất hồ sơ
    * - Giám đốc tự tạo: chuyển thẳng lên Chủ tịch duyệt
    * - Chủ tịch tự tạo: chuyển thẳng sang Kế toán giải ngân
    */
@@ -29,8 +30,8 @@ class AdvanceProposalService {
     // Chủ tịch: bỏ qua cả giám đốc và chủ tịch, chuyển thẳng sang kế toán
 
     flow.push({ step: 'Kế toán duyệt & giải ngân', role: 'ke_toan', status: 'pending' });
-    flow.push({ step: 'Hoàn tạm ứng', role: 'creator', status: 'pending' });
-    flow.push({ step: 'Kế toán xác nhận hoàn tạm ứng', role: 'ke_toan', status: 'pending' });
+    flow.push({ step: 'Thu mua gửi hóa đơn & xác nhận hoàn tạm ứng', role: 'creator', status: 'pending' });
+    flow.push({ step: 'Kế toán xác nhận hoàn tất hồ sơ', role: 'ke_toan', status: 'pending' });
 
     return flow;
   }
@@ -77,12 +78,15 @@ class AdvanceProposalService {
       currentApprovalRole,
       status,
       purchaseProposal: data.purchaseProposal || null,
+      contractInfo: data.contractInfo || null,
+      beneficiaryInvoice: data.beneficiaryInvoice || null,
     });
 
     return await AdvanceProposal.findById(proposal._id)
       .populate('creator', 'fullName email role')
       .populate('department', 'name')
-      .populate('purchaseProposal', 'proposalCode totalEstimatedAmount totalActualAmount');
+      .populate('purchaseProposal', 'proposalCode totalEstimatedAmount totalActualAmount procurementExecution')
+      .populate('beneficiaryInvoice.purchaseProposal', 'proposalCode totalEstimatedAmount totalActualAmount items procurementExecution');
   }
 
   async getAll(userId, userRole, userDepartment) {
@@ -120,7 +124,9 @@ class AdvanceProposalService {
       .populate('approvalFlow.approver', 'fullName role')
       .populate('disbursements.processedBy', 'fullName')
       .populate('settlement.confirmedBy', 'fullName')
-      .populate('purchaseProposal', 'proposalCode totalEstimatedAmount totalActualAmount items');
+      .populate('settlement.requestedBy', 'fullName')
+      .populate('purchaseProposal', 'proposalCode totalEstimatedAmount totalActualAmount items procurementExecution')
+      .populate('beneficiaryInvoice.purchaseProposal', 'proposalCode totalEstimatedAmount totalActualAmount items procurementExecution');
 
     if (!proposal) throw new Error('Đề xuất không tồn tại');
     return proposal;
@@ -286,27 +292,47 @@ class AdvanceProposalService {
     }
 
     const accountingStep = proposal.approvalFlow.find(
-      step => step.role === 'ke_toan' && step.step === 'Kế toán duyệt & giải ngân' && step.status === 'pending'
+      step => step.role === 'ke_toan' && (step.step.includes('giải ngân') || step.step.includes('thanh toán')) && step.status === 'pending'
     );
 
     if (accountingStep) {
       accountingStep.status = 'approved';
       accountingStep.approver = accountantId;
       accountingStep.date = new Date();
+      accountingStep.comment = note || 'Kế toán đã duyệt và chuyển tiền tạm ứng cho Thu mua';
     }
 
     // Ghi nhận lần giải ngân chi tiền
     const disbursementAmount = amount || proposal.totalAmount;
     proposal.disbursements.push({
       amount: disbursementAmount,
-      note: note || 'Giải ngân tạm ứng',
+      note: note || 'Chuyển tiền tạm ứng cho Thu mua đi làm hóa đơn mua sắm',
       processedBy: accountantId,
       date: new Date(),
     });
     proposal.totalDisbursed += disbursementAmount;
 
+    // Chuyển sang trạng thái đã giải ngân / chờ thu mua gửi hóa đơn và hoàn tạm ứng
     proposal.status = 'pending_settlement';
     proposal.currentApprovalRole = 'creator';
+
+    // [LUỒNG MỚI] Nếu tạm ứng này gắn với hóa đơn mua sắm, đồng bộ thông tin sang PurchaseProposal
+    const targetPurchaseId = proposal.beneficiaryInvoice?.purchaseProposal || proposal.purchaseProposal;
+    if (targetPurchaseId) {
+      try {
+        const purchase = await PurchaseProposal.findById(targetPurchaseId);
+        if (purchase) {
+          purchase.procurementExecution = purchase.procurementExecution || {};
+          purchase.procurementExecution.isAdvanced = true;
+          purchase.procurementExecution.advanceAmount = proposal.totalDisbursed;
+          purchase.procurementExecution.advanceProposalId = proposal._id;
+          purchase.procurementExecution.advanceNote = `Đã nhận tiền tạm ứng từ ${proposal.proposalCode}`;
+          await purchase.save();
+        }
+      } catch (err) {
+        console.error('Lỗi khi đồng bộ đơn mua sắm sau giải ngân tạm ứng:', err);
+      }
+    }
 
     await proposal.save();
     return await this.getById(proposalId);
@@ -316,22 +342,69 @@ class AdvanceProposalService {
     const proposal = await AdvanceProposal.findById(proposalId);
     if (!proposal) throw new Error('Đề xuất không tồn tại');
 
-    if (proposal.status !== 'pending_settlement' && proposal.status !== 'rejected_settlement') {
-      throw new Error('Đề xuất không ở trạng thái hoàn tạm ứng');
+    if (proposal.status !== 'pending_settlement' && proposal.status !== 'rejected_settlement' && proposal.status !== 'disbursed') {
+      throw new Error('Đề xuất không ở trạng thái nộp hóa đơn / hoàn tạm ứng');
     }
 
     if (proposal.creator.toString() !== creatorId.toString()) {
       throw new Error('Chỉ người tạo đề xuất mới có thể hoàn tạm ứng');
     }
 
+    // [CẬP NHẬT SỐ LIỆU] Công thức: hoàn tạm ứng = số tiền tạm ứng hợp đồng - giá của hóa đơn
+    // Nếu tạm ứng thiếu (diff < 0) thì chuyển thêm cho thu mua, nếu dư (diff > 0) thì yêu cầu thu mua hoàn tạm ứng
+    const advanceAmount = Number(proposal.totalDisbursed > 0 ? proposal.totalDisbursed : proposal.totalAmount) || 0;
+    const actualInvoiceAmount = Number(settlementData.actualInvoiceAmount || settlementData.invoiceAmount || 0);
+
+    let calcType = settlementData.type;
+    let diffAmount = 0;
+    let diffAbs = 0;
+
+    if (actualInvoiceAmount > 0) {
+      diffAmount = advanceAmount - actualInvoiceAmount; // Hoàn tạm ứng = tạm ứng - hóa đơn
+      diffAbs = Math.abs(diffAmount);
+      if (diffAmount > 0) {
+        calcType = 'surplus'; // Tạm ứng dư -> Yêu cầu thu mua hoàn tạm ứng
+      } else if (diffAmount < 0) {
+        calcType = 'deficit'; // Tạm ứng thiếu -> Công ty chuyển thêm cho thu mua
+      } else {
+        calcType = 'exact';   // Khớp đúng
+      }
+    } else {
+      diffAbs = Number(settlementData.amount) || 0;
+    }
+
     // Cập nhật thông tin quyết toán hoàn ứng
     proposal.settlement = {
-      type: settlementData.type, // 'surplus', 'deficit', 'exact'
-      amount: settlementData.amount || 0,
+      type: calcType || 'exact',
+      amount: diffAbs,
+      invoiceAmount: actualInvoiceAmount,
+      advanceAmount: advanceAmount,
+      diffAmount: diffAmount,
+      purchaserConfirmed: true,
+      purchaserConfirmType: settlementData.purchaserConfirmType || (diffAmount < 0 ? 'received_additional' : diffAmount > 0 ? 'refunded_surplus' : 'exact_matched'),
+      purchaserConfirmProof: settlementData.purchaserConfirmProof || [],
+      purchaserNote: settlementData.purchaserNote || settlementData.note || '',
+      purchaserConfirmedAt: new Date(),
       attachments: settlementData.attachments || [],
       note: settlementData.note || '',
       submittedAt: new Date(),
+      confirmedAt: null,
+      confirmedBy: null,
     };
+
+    // Nếu có cập nhật hóa đơn thực tế, lưu vào beneficiaryInvoice
+    if (proposal.beneficiaryInvoice) {
+      if (settlementData.actualInvoiceDate) {
+        proposal.beneficiaryInvoice.actualInvoiceDate = new Date(settlementData.actualInvoiceDate);
+      }
+      if (actualInvoiceAmount > 0) {
+        proposal.beneficiaryInvoice.actualInvoiceAmount = actualInvoiceAmount;
+      }
+      if (settlementData.actualInvoiceFiles && settlementData.actualInvoiceFiles.length > 0) {
+        proposal.beneficiaryInvoice.actualInvoiceFiles = settlementData.actualInvoiceFiles;
+      }
+      proposal.beneficiaryInvoice.actualSubmittedAt = new Date();
+    }
 
     // Đánh dấu bước nộp hoàn ứng của người tạo là đã hoàn tất
     const creatorStep = proposal.approvalFlow.find(
@@ -341,11 +414,20 @@ class AdvanceProposalService {
       creatorStep.status = 'approved';
       creatorStep.approver = creatorId;
       creatorStep.date = new Date();
+      let stepNote = 'Thu mua đã xác nhận hoàn tạm ứng';
+      if (diffAmount < 0) {
+        stepNote += ` (Tạm ứng thiếu: yêu cầu công ty chuyển thêm ${diffAbs.toLocaleString('vi-VN')} VNĐ)`;
+      } else if (diffAmount > 0) {
+        stepNote += ` (Tạm ứng dư: đã chuyển trả hoàn tạm ứng ${diffAbs.toLocaleString('vi-VN')} VNĐ)`;
+      } else {
+        stepNote += ' (Khớp đúng số tiền tạm ứng)';
+      }
+      creatorStep.comment = stepNote;
     }
 
     // Đặt lại bước kế toán xác nhận là pending
     const accountingFinalStep = proposal.approvalFlow.find(
-      step => step.step === 'Kế toán xác nhận hoàn tạm ứng'
+      step => step.role === 'ke_toan' && (step.step.includes('xác nhận') || step.step.includes('hoàn tất'))
     );
     if (accountingFinalStep) {
       accountingFinalStep.status = 'pending';
@@ -356,6 +438,32 @@ class AdvanceProposalService {
     proposal.status = 'settlement_submitted';
     proposal.currentApprovalRole = 'ke_toan';
     proposal.rejectionReason = ''; // Xóa lý do từ chối hoàn ứng nếu có
+
+    // Đồng bộ thông tin hóa đơn và đơn giá thực tế sang PurchaseProposal nếu có
+    const targetPurchaseId = proposal.beneficiaryInvoice?.purchaseProposal || proposal.purchaseProposal;
+    if (targetPurchaseId) {
+      try {
+        const purchase = await PurchaseProposal.findById(targetPurchaseId);
+        if (purchase) {
+          purchase.procurementExecution = purchase.procurementExecution || {};
+          if (actualInvoiceAmount > 0) {
+            purchase.totalActualAmount = actualInvoiceAmount;
+            if (Array.isArray(purchase.items) && purchase.items.length === 1) {
+              purchase.items[0].donGiaThucTe = actualInvoiceAmount;
+            }
+            purchase.procurementExecution.invoiceInfo = {
+              ...(purchase.procurementExecution.invoiceInfo || {}),
+              invoiceDate: settlementData.actualInvoiceDate ? new Date(settlementData.actualInvoiceDate) : new Date(),
+              invoiceAmount: actualInvoiceAmount,
+              files: settlementData.actualInvoiceFiles || settlementData.attachments || [],
+            };
+          }
+          await purchase.save();
+        }
+      } catch (err) {
+        console.error('Lỗi khi đồng bộ hóa đơn sang PurchaseProposal:', err);
+      }
+    }
 
     await proposal.save();
     return await this.getById(proposalId);
@@ -393,30 +501,175 @@ class AdvanceProposalService {
     return await this.getById(proposalId);
   }
 
+  /**
+   * [QUY TRÌNH MỚI] Kế toán lập đề xuất hoàn tạm ứng đối với số tiền chênh lệch (khi tạm ứng > hóa đơn thực tế)
+   */
+  async requestSettlement(proposalId, accountantId, settlementData = {}) {
+    const proposal = await AdvanceProposal.findById(proposalId);
+    if (!proposal) throw new Error('Đề xuất không tồn tại');
+
+    const accountant = await User.findById(accountantId);
+    if (!accountant) throw new Error('Người duyệt không tồn tại');
+
+    const advanceAmount = Number(proposal.totalDisbursed > 0 ? proposal.totalDisbursed : proposal.totalAmount) || 0;
+    const invAmount = Number(
+      settlementData.actualInvoiceAmount ||
+      proposal.beneficiaryInvoice?.actualInvoiceAmount ||
+      proposal.settlement?.invoiceAmount ||
+      0
+    );
+    const calculatedDiff = advanceAmount - invAmount;
+    const diffAmount = Number(settlementData.diffAmount) || calculatedDiff;
+
+    if (diffAmount <= 0) {
+      throw new Error('Số tiền tạm ứng không lớn hơn giá hóa đơn, không thể lập đề xuất hoàn tạm ứng chênh lệch');
+    }
+
+    // Cập nhật thông tin hóa đơn thực tế nếu có
+    if (!proposal.beneficiaryInvoice) proposal.beneficiaryInvoice = {};
+    if (settlementData.actualInvoiceDate) {
+      proposal.beneficiaryInvoice.actualInvoiceDate = new Date(settlementData.actualInvoiceDate);
+    }
+    if (invAmount > 0) {
+      proposal.beneficiaryInvoice.actualInvoiceAmount = invAmount;
+    }
+    if (settlementData.actualInvoiceFiles && settlementData.actualInvoiceFiles.length > 0) {
+      proposal.beneficiaryInvoice.actualInvoiceFiles = settlementData.actualInvoiceFiles;
+    }
+
+    proposal.settlement = {
+      ...(proposal.settlement || {}),
+      type: 'surplus',
+      amount: diffAmount,
+      invoiceAmount: invAmount,
+      advanceAmount: advanceAmount,
+      diffAmount: diffAmount,
+      requestedBy: accountantId,
+      requestedAt: new Date(),
+      accountantNote: settlementData.note || '',
+      purchaserConfirmed: false,
+      purchaserConfirmType: null,
+      purchaserConfirmProof: [],
+      purchaserNote: '',
+      purchaserConfirmedAt: null,
+      attachments: settlementData.actualInvoiceFiles || proposal.beneficiaryInvoice?.actualInvoiceFiles || [],
+      note: settlementData.note || `Kế toán ${accountant.fullName} đã lập đề xuất hoàn tạm ứng số tiền chênh lệch ${diffAmount.toLocaleString('vi-VN')} VNĐ.`,
+      submittedAt: new Date(),
+    };
+
+    // Cập nhật approvalFlow: ghi nhận bước kế toán lập đề xuất hoàn tạm ứng
+    let acctStep = proposal.approvalFlow.find(
+      step => step.role === 'ke_toan' && (step.step.includes('hoàn') || step.status === 'pending')
+    );
+    if (acctStep) {
+      acctStep.step = 'Kế toán lập đề xuất hoàn tạm ứng';
+      acctStep.status = 'approved';
+      acctStep.approver = accountantId;
+      acctStep.comment = settlementData.note || `Yêu cầu Thu mua nộp lại số tiền tạm ứng dư ${diffAmount.toLocaleString('vi-VN')} VNĐ`;
+      acctStep.date = new Date();
+    }
+
+    // Đảm bảo bước Thu mua nộp hoàn tạm ứng là pending
+    let creatorStep = proposal.approvalFlow.find(
+      step => step.role === 'creator' && (step.step.includes('hoàn tạm ứng') || step.step.includes('hoàn ứng'))
+    );
+    if (!creatorStep) {
+      proposal.approvalFlow.push({
+        step: 'Thu mua xác nhận hoàn tạm ứng',
+        role: 'creator',
+        status: 'pending',
+        approver: null,
+        comment: '',
+      });
+    } else {
+      creatorStep.status = 'pending';
+      creatorStep.approver = null;
+      creatorStep.comment = '';
+    }
+
+    // Đảm bảo có bước kế toán xác nhận hoàn tất sau khi Thu mua nộp
+    let finalAcctStep = proposal.approvalFlow.find(
+      step => step.role === 'ke_toan' && (step.step.includes('xác nhận') || step.step.includes('hoàn tất'))
+    );
+    if (!finalAcctStep) {
+      proposal.approvalFlow.push({
+        step: 'Kế toán xác nhận hoàn tất hồ sơ',
+        role: 'ke_toan',
+        status: 'pending',
+        approver: null,
+        comment: '',
+      });
+    }
+
+    proposal.status = 'pending_settlement';
+    proposal.currentApprovalRole = 'creator'; // Chuyển cho Thu mua nộp lại tiền thừa
+    proposal.rejectionReason = '';
+    proposal.markModified('approvalFlow');
+
+    await proposal.save();
+    return await this.getById(proposalId);
+  }
+
+  /**
+   * [QUY TRÌNH MỚI] Kế toán xác nhận hoàn tất:
+   * - Nếu hóa đơn thực tế vừa đủ số tiền tạm ứng (diff === 0): Kế toán xác nhận hoàn thành trực tiếp.
+   * - Nếu Thu mua đã nộp hoàn ứng (settlement_submitted): Kế toán kiểm tra chứng từ và xác nhận quyết toán hoàn tất.
+   */
   async confirmSettlement(proposalId, accountantId, comment) {
     const proposal = await AdvanceProposal.findById(proposalId);
     if (!proposal) throw new Error('Đề xuất không tồn tại');
 
-    if (proposal.status !== 'settlement_submitted') {
+    const advanceAmount = Number(proposal.totalDisbursed > 0 ? proposal.totalDisbursed : proposal.totalAmount) || 0;
+    const invAmount = Number(proposal.beneficiaryInvoice?.actualInvoiceAmount || proposal.settlement?.invoiceAmount || 0);
+    const isExact = (advanceAmount > 0 && invAmount > 0 && advanceAmount === invAmount) || proposal.settlement?.type === 'exact';
+
+    if (proposal.status !== 'settlement_submitted' && proposal.status !== 'pending_settlement' && proposal.status !== 'disbursed' && !isExact) {
       throw new Error('Đề xuất không ở trạng thái chờ xác nhận hoàn tạm ứng');
     }
 
     // Đánh dấu bước kế toán xác nhận hoàn ứng là đã duyệt
     const finalAccountingStep = proposal.approvalFlow.find(
-      step => step.step === 'Kế toán xác nhận hoàn tạm ứng' && step.status === 'pending'
+      step => step.role === 'ke_toan' && (step.step.includes('xác nhận') || step.step.includes('hoàn tất') || step.status === 'pending')
     );
     if (finalAccountingStep) {
       finalAccountingStep.status = 'approved';
       finalAccountingStep.approver = accountantId;
-      finalAccountingStep.comment = comment || '';
+      finalAccountingStep.comment = comment || (isExact ? 'Kế toán xác nhận hoàn tất hồ sơ (hóa đơn vừa đủ tiền tạm ứng)' : 'Kế toán xác nhận hoàn tất hồ sơ tạm ứng hợp đồng');
       finalAccountingStep.date = new Date();
     }
 
+    proposal.settlement = proposal.settlement || {};
+    if (isExact) {
+      proposal.settlement.type = 'exact';
+      proposal.settlement.amount = 0;
+      proposal.settlement.diffAmount = 0;
+      proposal.settlement.advanceAmount = advanceAmount;
+      proposal.settlement.invoiceAmount = invAmount;
+    }
     proposal.settlement.confirmedAt = new Date();
     proposal.settlement.confirmedBy = accountantId;
 
     proposal.status = 'completed';
     proposal.currentApprovalRole = null;
+
+    // [LUỒNG MỚI] Đồng bộ hoàn thành hồ sơ tạm ứng sang PurchaseProposal nếu có
+    const targetPurchaseId = proposal.beneficiaryInvoice?.purchaseProposal || proposal.purchaseProposal;
+    if (targetPurchaseId) {
+      try {
+        const purchase = await PurchaseProposal.findById(targetPurchaseId);
+        if (purchase) {
+          purchase.isInvoiceCompleted = true;
+          purchase.invoiceCompletedAt = new Date();
+          if (['pending_accounting', 'procurement_execution', 'accounting_review'].includes(purchase.status)) {
+            purchase.status = 'completed';
+            purchase.currentApprovalRole = null;
+          }
+          await purchase.save();
+        }
+      } catch (err) {
+        console.error('Lỗi khi cập nhật hoàn tất hồ sơ mua sắm:', err);
+      }
+    }
 
     await proposal.save();
     return await this.getById(proposalId);

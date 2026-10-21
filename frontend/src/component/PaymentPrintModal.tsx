@@ -270,7 +270,7 @@ export const PaymentPrintModal: React.FC<PaymentPrintModalProps> = ({
             </div>
             <div style={{ textAlign: 'center', fontSize: '10.5pt', fontStyle: 'italic', marginBottom: '16px' }}>
               {purchaseCode ? `(Căn cứ đơn mua sắm vật tư số: ${purchaseCode}` : '(Thanh toán chi phí phục vụ hoạt động công ty'}
-              {proposal.contractInfo?.contractNumber ? ` • Hợp đồng kinh tế số: ${proposal.contractInfo.contractNumber}` : ''}
+              {proposal.invoiceInfo?.invoiceDate ? ` • Hóa đơn ngày: ${formatDate(proposal.invoiceInfo.invoiceDate)}` : ''}
               {proposal.quotationAttachments && proposal.quotationAttachments.length > 0 ? ` • Kèm theo ${proposal.quotationAttachments.length} bản báo giá đối tác` : ''}
               {purchaseCode ? ')' : ''}
             </div>
@@ -294,10 +294,10 @@ export const PaymentPrintModal: React.FC<PaymentPrintModalProps> = ({
                   <span>{proposal.installmentNote}</span>
                 </div>
               )}
-              {proposal.contractInfo?.contractNumber && (
+              {proposal.invoiceInfo?.invoiceDate && (
                 <div style={{ display: 'flex' }}>
-                  <span style={{ minWidth: '170px' }}><strong>Hợp đồng kinh tế:</strong></span>
-                  <span>Số: <strong>{proposal.contractInfo.contractNumber}</strong> {proposal.contractInfo.partnerName ? `— Đối tác: ${proposal.contractInfo.partnerName}` : ''}</span>
+                  <span style={{ minWidth: '170px' }}><strong>Ngày lập hóa đơn:</strong></span>
+                  <span>{formatDate(proposal.invoiceInfo.invoiceDate)}</span>
                 </div>
               )}
               <div style={{ display: 'flex' }}>

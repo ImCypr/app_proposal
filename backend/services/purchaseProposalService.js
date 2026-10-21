@@ -6,51 +6,47 @@ const { researchPrice } = require('./aiSearchService');
 class PurchaseProposalService {
 
   /**
-   * [LUỒNG MỚI] Xây dựng luồng phê duyệt cố định 5 bước, không phân biệt hạn mức tiền.
+   * [LUỒNG CẬP NHẬT] Xây dựng luồng phê duyệt dựa theo vai trò người tạo đơn:
    *
-   * Bước 1: Trưởng phòng duyệt tính thỏa đáng của yêu cầu vật tư
-   * Bước 2: Thu mua lập 3-4 bản báo giá + giải trình, gửi thẳng lên Giám đốc
-   * Bước 3: Giám đốc xem báo giá và phê duyệt mua (có thể từ chối)
-   * Bước 4: Thu mua thực hiện mua sắm (chọn 1 trong 3: ứng trước, hóa đơn, hợp đồng)
-   * Bước 5: Kế toán lập đề xuất thanh toán / tạm ứng và giải ngân
+   * - Nếu người tạo là NHÂN VIÊN (role = 'nhan_vien'):
+   *   Bước 1: Trưởng phòng trực tiếp (directManager) duyệt yêu cầu vật tư
+   *   Bước 2: Thu mua lập 3-4 báo giá + giải trình, gửi lên Giám đốc
+   *   Bước 3: Giám đốc / Chủ tịch xem báo giá và phê duyệt mua
+   *   Bước 4: Thu mua thực hiện mua sắm
+   *   Bước 5: Kế toán thanh toán / tạm ứng
    *
-   * ------ LUỒNG CŨ (ĐÃ COMMENT LẠI để tham chiếu) ------
-   * Luồng cũ phân nhánh theo hạn mức tiền và vai trò người tạo:
-   *   Nhân viên <= 1M  : truong_phong → thu_mua → ke_toan → pending_determination → ke_toan
-   *   Nhân viên <= 10M : giam_doc     → thu_mua → ke_toan → pending_determination → ke_toan
-   *   Nhân viên > 10M  : chu_tich     → thu_mua → ke_toan → chu_tich → ke_toan
-   *   Trưởng phòng <= 1M : thu_mua   → ke_toan → pending_determination → ke_toan
-   *   Giám đốc <= 10M    : thu_mua   → ke_toan → pending_determination → ke_toan
-   * ------ KẾT THÚC LUỒNG CŨ ------
+   * - Nếu người tạo là QUẢN LÝ CẤP CAO (truong_phong / giam_doc / chu_tich):
+   *   Bỏ qua bước 1, đơn đi thẳng vào Bước 2 (Thu mua lập báo giá)
+   *   Bước 2 → 5 giữ nguyên như nhân viên.
    */
-  // [LUỒNG MỚI] Tham số estimatedAmount giữ lại để không phá vỡ nơi gọi hàm, nhưng không dùng để phân nhánh
-  buildInitialApprovalFlow(creatorRole, estimatedAmount) { // eslint-disable-line no-unused-vars
+  buildInitialApprovalFlow(creatorRole) {
     const flow = [];
 
-    // Bước 1: Trưởng phòng duyệt (áp dụng cho MỌI vai trò người tạo, kể cả truong_phong tự tạo đơn)
-    // [LUỒNG CŨ] Bỏ điều kiện if/else phân nhánh theo creatorRole + estimatedAmount
-    flow.push({ step: 'Trưởng phòng duyệt yêu cầu', role: 'truong_phong', status: 'pending' });
+    // Bước 1: CHỈ áp dụng khi người tạo là nhân viên thường
+    // Trưởng phòng / Giám đốc / Chủ tịch tự tạo đơn thì BỎ QUA bước này
+    if (creatorRole === 'nhan_vien') {
+      flow.push({
+        step: 'Trưởng phòng trực tiếp duyệt yêu cầu',
+        role: 'truong_phong',
+        status: 'pending',
+        // approver sẽ được gán = directManager._id sau khi hàm create() gọi buildInitialApprovalFlow()
+      });
+    }
 
     // Bước 2: Thu mua lập báo giá 3-4 NCC + văn bản giải trình
-    // [LUỒNG CŨ] Bước này trước đây không yêu cầu giải trình, chỉ điền 1 đơn giá thực tế
     flow.push({ step: 'Thu mua lập báo giá & giải trình', role: 'thu_mua', status: 'pending' });
 
-    // Bước 3: Giám đốc xem báo giá và phê duyệt mua
-    // [LUỒNG CŨ] Trước đây GĐ duyệt CUỐI sau khi kế toán xác nhận, giờ GĐ duyệt TRƯỚC khi mua
+    // Bước 3: Giám đốc xem báo giá và phê duyệt mua (có thể đổi thành Chủ tịch nếu > 10tr)
     flow.push({ step: 'Giám đốc phê duyệt mua', role: 'giam_doc', status: 'pending' });
 
     // Bước 4: Thu mua thực hiện mua sắm (ứng trước / hóa đơn / hợp đồng)
-    // [LUỒNG MỚI] Bước này hoàn toàn mới, không có trong luồng cũ
     flow.push({ step: 'Thu mua thực hiện mua sắm', role: 'thu_mua', status: 'pending' });
 
-    // Bước 5: Kế toán thanh toán / tạm ứng dựa trên hồ sơ thu mua nộp
-    // [LUỒNG CŨ] Trước đây kế toán xác nhận giá TRƯỚC GĐ duyệt, giờ chỉ xử lý sau cùng
+    // Bước 5: Kế toán thanh toán / tạm ứng
     flow.push({ step: 'Kế toán thanh toán / tạm ứng', role: 'ke_toan', status: 'pending' });
 
     return flow;
   }
-
-
 
   getCurrentApprovalRole(approvalFlow) {
     const pendingStep = approvalFlow.find(step => step.status === 'pending');
@@ -58,23 +54,26 @@ class PurchaseProposalService {
   }
 
   async create(creatorId, data) {
-    const creator = await User.findById(creatorId).populate('department');
+    const creator = await User.findById(creatorId).populate('department').populate('directManager', 'fullName email role');
     if (!creator) throw new Error('Người dùng không tồn tại');
 
-    // [LUỒNG MỚI] Bỏ phần ước tính chi phí khi nhân viên gửi yêu cầu vật tư lên trưởng phòng (đơn giá sẽ do Thu mua khảo sát)
-    // [LUỒNG CŨ] const estimatedTotal = data.items.reduce((sum, item) => sum + (item.soLuong * (item.donGiaDuKien || 0)), 0);
-    const estimatedTotal = 0;
+    const approvalFlow = this.buildInitialApprovalFlow(creator.role);
 
-    const approvalFlow = this.buildInitialApprovalFlow(creator.role, estimatedTotal);
-    const currentApprovalRole = this.getCurrentApprovalRole(approvalFlow);
+    // [LUỒNG CẬP NHẬT] Phân biệt trạng thái ban đầu theo vai trò người tạo:
+    // - Nhân viên: chờ trưởng phòng trực tiếp duyệt (pending_tp_approval)
+    // - Quản lý cấp cao (truong_phong / giam_doc / chu_tich): bỏ qua bước TP, đi thẳng vào Thu mua (procurement_pricing)
+    const isManagerOrAbove = ['truong_phong', 'giam_doc', 'chu_tich'].includes(creator.role);
+    const status = isManagerOrAbove ? 'procurement_pricing' : 'pending_tp_approval';
+    const currentApprovalRole = isManagerOrAbove ? 'thu_mua' : 'truong_phong';
 
-    // [LUỒNG MỚI] Đơn mới tạo luôn bắt đầu bằng 'pending_tp_approval' (chờ Trưởng phòng duyệt tính thỏa đáng)
-    // [LUỒNG CŨ]
-    // let status = 'pending_approval';
-    // if (currentApprovalRole === 'thu_mua') {
-    //   status = 'procurement_review';
-    // }
-    const status = 'pending_tp_approval';
+    // Đối với nhân viên: ghi nhận ID trưởng phòng trực tiếp vào bước đầu tiên trong approvalFlow
+    // để sau này khi duyệt, chỉ đúng người đó mới có quyền duyệt
+    if (!isManagerOrAbove && creator.directManager) {
+      const tpStep = approvalFlow.find(s => s.role === 'truong_phong');
+      if (tpStep) {
+        tpStep.approver = creator.directManager._id || creator.directManager;
+      }
+    }
 
     // Đảm bảo các hạng mục vật tư không bắt buộc đơn giá dự kiến
     const sanitizedItems = data.items.map((item, idx) => ({
@@ -93,7 +92,7 @@ class PurchaseProposalService {
       approvalFlow,
       currentApprovalRole,
       status,
-      // [LUỒNG MỚI] Giải trình tính cần thiết và ảnh minh chứng ban đầu (không cần nhập số tiền tạm ứng)
+      // [LUỒNG MỚI] Giải trình tính cần thiết và ảnh minh chứng ban đầu
       necessityReason: data.necessityReason || '',
       necessityAttachments: data.necessityAttachments || [],
     });
@@ -111,19 +110,32 @@ class PurchaseProposalService {
       // Nhân viên: chỉ xem đề xuất do chính mình tạo (kể cả đơn bị từ chối gửi về)
       query.creator = userId;
     } else if (userRole === 'truong_phong') {
-      // Trưởng phòng: xem đề xuất của phòng ban mình phụ trách
-      query.department = userDepartment;
+      // Trưởng phòng: xem các đơn do nhân viên mình quản lý gửi lên (directManager trỏ tới mình)
+      // VÀ cả đơn của phòng ban mình (tương thích ngược với dữ liệu cũ không có directManager)
+      query.$or = [
+        {
+          // Đơn nhân viên gửi lên trưởng phòng cụ thể này (đã thiết lập directManager)
+          'approvalFlow.0.approver': userId,
+        },
+        {
+          // Đơn của phòng ban mình (tương thích dữ liệu cũ / nhân viên chưa có directManager)
+          department: userDepartment,
+          status: { $in: ['pending_tp_approval', 'pending_approval', 'rejected_by_tp', 'procurement_pricing', 'procurement_execution', 'pending_accounting', 'pending_director_approval', 'pending_chairman_approval', 'completed', 'rejected'] },
+        },
+        {
+          // Đơn do chính trưởng phòng tạo
+          creator: userId,
+        },
+      ];
     } else if (userRole === 'thu_mua') {
       // [LUỒNG MỚI] Thu mua: xem các đề xuất cần khảo giá (procurement_pricing), cần mua sắm (procurement_execution), hoặc từng xử lý
-      // [LUỒNG CŨ] query.$or = [{ currentApprovalRole: 'thu_mua' }, { 'approvalFlow.role': 'thu_mua', 'approvalFlow.status': { $in: ['approved', 'pending'] } }];
       query.$or = [
         { currentApprovalRole: 'thu_mua' },
         { status: { $in: ['procurement_pricing', 'procurement_execution', 'procurement_review', 'rejected_by_director', 'rejected_by_accounting'] } },
         { 'approvalFlow.role': 'thu_mua', 'approvalFlow.status': { $in: ['approved', 'pending'] } },
       ];
     } else if (userRole === 'ke_toan') {
-      // [LUỒNG MỚI] Kế toán: nhận bản sao theo dõi khi Thu mua nộp báo giá cho GĐ/Chủ tịch (pending_director_approval / pending_chairman_approval), xử lý chứng từ khi Thu mua nộp hồ sơ (pending_accounting), hoặc giải ngân
-      // [LUỒNG CŨ] query.$or = [{ currentApprovalRole: 'ke_toan' }, { status: { $in: ['pending_payment', 'pending_payment_approval', 'disbursing', 'completed'] } }, { 'approvalFlow.role': 'ke_toan', 'approvalFlow.status': { $in: ['approved', 'pending'] } }];
+      // [LUỒNG MỚI] Kế toán: nhận bản sao theo dõi khi Thu mua nộp báo giá cho GĐ/Chủ tịch, xử lý chứng từ khi Thu mua nộp hồ sơ
       query.$or = [
         { currentApprovalRole: 'ke_toan' },
         { status: { $in: ['pending_director_approval', 'pending_chairman_approval', 'pending_accounting', 'accounting_review', 'pending_payment', 'pending_payment_approval', 'disbursing', 'completed', 'rejected_by_accounting'] } },
@@ -181,7 +193,17 @@ class PurchaseProposalService {
     const currentStep = proposal.approvalFlow[currentStepIndex];
 
     // Xác thực người duyệt có đúng vai trò được cấp quyền hay không
-    if (currentStep.role !== 'pending_determination' && currentStep.role !== approver.role) {
+    // Đặc biệt: bước truong_phong có thể có approver cụ thể (directManager) được gán sẵn,
+    // trong trường hợp đó CHỈ người được gán đó mới có quyền duyệt.
+    if (currentStep.role === 'truong_phong') {
+      const assignedManager = currentStep.approver ? String(currentStep.approver) : null;
+      if (assignedManager && assignedManager !== String(approverId)) {
+        throw new Error('Bạn không phải trưởng phòng trực tiếp của nhân viên này. Không có quyền duyệt bước này.');
+      }
+      if (!assignedManager && approver.role !== 'truong_phong') {
+        throw new Error('Bạn không có quyền duyệt bước này (yêu cầu vai trò Trưởng phòng)');
+      }
+    } else if (currentStep.role !== 'pending_determination' && currentStep.role !== approver.role) {
       throw new Error('Bạn không có quyền duyệt bước này');
     }
 
@@ -267,12 +289,17 @@ class PurchaseProposalService {
 
     // Xác định khâu hiện tại và trả về khâu trước đó
     if (proposal.status === 'pending_tp_approval' || proposal.status === 'pending_approval') {
-      // 1. Trưởng phòng từ chối -> Gửi về cho Nhân viên (người tạo đơn)
+      // 1. Trưởng phòng trực tiếp từ chối -> Gửi về cho Nhân viên (người tạo đơn)
       const tpStep = proposal.approvalFlow.find(s => s.role === 'truong_phong');
       if (tpStep) {
+        // Kiểm tra: chỉ người được gán hoặc truong_phong chung mới được từ chối
+        const assignedManager = tpStep.approver ? String(tpStep.approver) : null;
+        if (assignedManager && assignedManager !== String(approverId) && approver.role !== 'truong_phong') {
+          throw new Error('Bạn không phải trưởng phòng trực tiếp của nhân viên này.');
+        }
         tpStep.status = 'rejected';
         tpStep.approver = approverId;
-        tpStep.comment = reason || 'Trưởng phòng từ chối yêu cầu vật tư';
+        tpStep.comment = reason || 'Trưởng phòng trực tiếp từ chối yêu cầu vật tư';
         tpStep.date = new Date();
       }
 
@@ -324,6 +351,23 @@ class PurchaseProposalService {
       proposal.status = 'rejected_by_accounting';
       proposal.currentApprovalRole = 'thu_mua';
       proposal.rejectionReason = reason || 'Kế toán yêu cầu kiểm tra lại chứng từ hóa đơn/hợp đồng.';
+
+      // Đồng bộ từ chối đơn tạm ứng liên kết (nếu có) để Thu mua làm lại
+      const targetAdvId = proposal.procurementExecution?.advanceProposalId;
+      if (targetAdvId) {
+        try {
+          const AdvanceProposalModel = require('../models/AdvanceProposal');
+          const advProposal = await AdvanceProposalModel.findById(targetAdvId);
+          if (advProposal) {
+            advProposal.status = 'rejected_by_accounting';
+            advProposal.currentApprovalRole = 'thu_mua';
+            advProposal.rejectionReason = reason || 'Kế toán từ chối hóa đơn, yêu cầu thu mua làm lại.';
+            await advProposal.save();
+          }
+        } catch (advErr) {
+          console.error('Lỗi khi đồng bộ từ chối AdvanceProposal trong reject:', advErr);
+        }
+      }
     } else if (proposal.status === 'procurement_pricing') {
       // 4. Thu mua từ chối -> Gửi về cho Trưởng phòng hoặc Người tạo
       const procurementStep = proposal.approvalFlow.find(s => s.role === 'thu_mua');
@@ -391,19 +435,27 @@ class PurchaseProposalService {
       proposal.necessityAttachments = updateData.necessityAttachments;
     }
 
-    // Reset lại trạng thái về Bước 1: Trưởng phòng duyệt
-    proposal.status = 'pending_tp_approval';
-    proposal.currentApprovalRole = 'truong_phong';
-    proposal.rejectionReason = '';
-
-    // Reset lại bước Trưởng phòng trong approvalFlow thành pending
+    // [LUỒNG CẬP NHẬT] Khi nộp lại, kiểm tra xem đơn có bước truong_phong không
+    // Nếu có (nhân viên): Reset về pending_tp_approval, giữ lại approver (directManager) trong bước đó
+    // Nếu không có (quản lý tự tạo): không nên xảy ra vì quản lý không bị rejected_by_tp
     const tpStep = proposal.approvalFlow.find(s => s.role === 'truong_phong');
     if (tpStep) {
+      // Giữ nguyên tpStep.approver (directManager đã được gán lúc tạo đơn)
+      const preservedManager = tpStep.approver;
       tpStep.status = 'pending';
-      tpStep.approver = null;
+      tpStep.approver = preservedManager;
       tpStep.comment = '';
       tpStep.date = null;
+
+      proposal.status = 'pending_tp_approval';
+      proposal.currentApprovalRole = 'truong_phong';
+    } else {
+      // Trường hợp dự phòng: không có bước TP (không nên xảy ra nhưng xử lý an toàn)
+      proposal.status = 'procurement_pricing';
+      proposal.currentApprovalRole = 'thu_mua';
     }
+
+    proposal.rejectionReason = '';
 
     await proposal.save();
     return await this.getById(proposalId);
@@ -668,7 +720,7 @@ class PurchaseProposalService {
 
     const finalStep = proposal.approvalFlow.find(
       step => (step.status === 'pending' || !step.status || step.status === 'approved') &&
-              (step.role === 'giam_doc' || step.role === 'chu_tich' || (step.step && step.step.includes('phê duyệt mua')))
+        (step.role === 'giam_doc' || step.role === 'chu_tich' || (step.step && step.step.includes('phê duyệt mua')))
     );
 
     if (finalStep) {
@@ -707,7 +759,7 @@ class PurchaseProposalService {
     }
 
     const { actionType, invoiceInfo, contractInfo, isAdvanced, advanceAmount, advanceNote, advanceProposalId } = executionData;
-    const hasInvoice = Boolean(invoiceInfo && (invoiceInfo.invoiceNumber || (invoiceInfo.files && invoiceInfo.files.length > 0)));
+    const hasInvoice = Boolean(invoiceInfo && (invoiceInfo.invoiceNumber || invoiceInfo.invoiceDate || invoiceInfo.invoiceAmount || (invoiceInfo.files && invoiceInfo.files.length > 0)));
     const hasContract = Boolean(contractInfo && (contractInfo.contractNumber || (contractInfo.files && contractInfo.files.length > 0)));
 
     let effectiveActionType = actionType || 'invoice';
@@ -717,6 +769,15 @@ class PurchaseProposalService {
       effectiveActionType = 'contract';
     } else if (hasInvoice) {
       effectiveActionType = 'invoice';
+    }
+
+    // [CẬP NHẬT SỐ LIỆU] Đơn giá thực tế là số tiền mà thu mua ghi ở mục giá của hóa đơn
+    const effectiveInvoiceAmount = Number(invoiceInfo?.invoiceAmount) || 0;
+    if (effectiveInvoiceAmount > 0) {
+      proposal.totalActualAmount = effectiveInvoiceAmount;
+      if (Array.isArray(proposal.items) && proposal.items.length === 1) {
+        proposal.items[0].donGiaThucTe = effectiveInvoiceAmount;
+      }
     }
 
     // [QUY TRÌNH MỚI] Quá trình tạm ứng do Thu mua tự thực hiện độc lập như nhân viên bên phân hệ Tạm Ứng.
@@ -732,6 +793,68 @@ class PurchaseProposalService {
       submittedBy: procurerId,
       submittedAt: new Date(),
     };
+
+    // [SO SÁNH HOÀN TẠM ỨNG] So sánh giá của hóa đơn đó với số tiền đã tạm ứng hóa đơn
+    // Hoàn tạm ứng = số tiền tạm ứng hợp đồng - giá của hóa đơn
+    // Nếu tạm ứng thiếu (diff < 0) thì chuyển thêm cho thu mua, nếu dư (diff > 0) thì yêu cầu thu mua hoàn tạm ứng
+    const targetAdvId = advanceProposalId || proposal.procurementExecution?.advanceProposalId;
+    if (targetAdvId) {
+      try {
+        const advProposal = await AdvanceProposal.findById(targetAdvId);
+        if (advProposal) {
+          const advAmount = Number(advProposal.totalDisbursed > 0 ? advProposal.totalDisbursed : advProposal.totalAmount) || Number(advanceAmount) || 0;
+          const diff = advAmount - effectiveInvoiceAmount; // Hoàn tạm ứng = tạm ứng - hóa đơn
+          const diffAbs = Math.abs(diff);
+
+          let calcType = 'exact';
+          if (diff > 0) {
+            calcType = 'surplus'; // Tạm ứng dư -> Yêu cầu thu mua hoàn tạm ứng
+          } else if (diff < 0) {
+            calcType = 'deficit'; // Tạm ứng thiếu -> Công ty chuyển thêm cho thu mua
+          } else {
+            calcType = 'exact';   // Đúng đủ
+          }
+
+          // Cập nhật thông tin hóa đơn thực tế và đối soát hoàn tạm ứng
+          advProposal.beneficiaryInvoice = advProposal.beneficiaryInvoice || {};
+          advProposal.beneficiaryInvoice.actualInvoiceAmount = effectiveInvoiceAmount;
+          advProposal.beneficiaryInvoice.actualInvoiceDate = invoiceInfo?.invoiceDate ? new Date(invoiceInfo.invoiceDate) : new Date();
+          advProposal.beneficiaryInvoice.actualInvoiceFiles = invoiceInfo?.files || [];
+          advProposal.beneficiaryInvoice.actualSubmittedAt = new Date();
+
+          advProposal.settlement = {
+            type: calcType,
+            amount: diffAbs,
+            invoiceAmount: effectiveInvoiceAmount,
+            advanceAmount: advAmount,
+            diffAmount: diff,
+            purchaserConfirmed: true,
+            purchaserConfirmType: diff < 0 ? 'received_additional' : diff > 0 ? 'refunded_surplus' : 'exact_matched',
+            purchaserConfirmProof: [],
+            purchaserNote: '',
+            purchaserConfirmedAt: new Date(),
+            attachments: invoiceInfo?.files || [],
+            note: `Hệ thống tự động tính số tiền cần hoàn tạm ứng: ${diffAbs.toLocaleString('vi-VN')} VNĐ (Tạm ứng: ${advAmount.toLocaleString('vi-VN')} VNĐ - Giá hóa đơn: ${effectiveInvoiceAmount.toLocaleString('vi-VN')} VNĐ). ${diff > 0 ? 'Tạm ứng dư, chuyển số tiền cần hoàn tạm ứng cho Kế toán.' : diff < 0 ? 'Tạm ứng thiếu, chuyển Kế toán chi bù.' : 'Khớp đúng 100%.'}`,
+            submittedAt: new Date(),
+            confirmedAt: null,
+            confirmedBy: null,
+          };
+
+          // Chuyển cho Kế toán xử lý (Kế toán chỉ cần bấm xác nhận để hoàn thành, hoặc từ chối yêu cầu bên thu mua làm lại)
+          advProposal.status = 'settlement_submitted';
+          advProposal.currentApprovalRole = 'ke_toan';
+
+          // Lưu trực tiếp kết quả tính toán hoàn tạm ứng vào procurementExecution của đơn mua sắm
+          proposal.procurementExecution.diffAmount = diff;
+          proposal.procurementExecution.settlementType = calcType;
+          proposal.procurementExecution.settlementAmount = diffAbs;
+
+          await advProposal.save();
+        }
+      } catch (advErr) {
+        console.error('Lỗi khi tự động so khớp hoàn tạm ứng trong submitProcurementExecution:', advErr);
+      }
+    }
 
     // Đánh dấu bước Thu mua thực hiện mua sắm trong approvalFlow là đã hoàn thành
     const executionStep = proposal.approvalFlow.find(
@@ -813,6 +936,43 @@ class PurchaseProposalService {
     proposal.currentApprovalRole = null;
     proposal.isInvoiceCompleted = true;
     proposal.invoiceCompletedAt = new Date();
+
+    // [QUY TRÌNH MỚI] Nếu đơn mua sắm này có liên kết đơn tạm ứng (đặc biệt khi vừa đủ hoặc hoàn tất):
+    // Tự động hoàn tất luôn đơn tạm ứng tương ứng
+    const targetAdvId = proposal.procurementExecution?.advanceProposalId;
+    if (targetAdvId) {
+      try {
+        const AdvanceProposalModel = require('../models/AdvanceProposal');
+        const advProposal = await AdvanceProposalModel.findById(targetAdvId);
+        if (advProposal && advProposal.status !== 'completed') {
+          const advAmount = Number(advProposal.totalDisbursed > 0 ? advProposal.totalDisbursed : advProposal.totalAmount) || 0;
+          const invAmount = Number(proposal.totalActualAmount) || Number(advProposal.beneficiaryInvoice?.actualInvoiceAmount) || advAmount;
+          advProposal.status = 'completed';
+          advProposal.currentApprovalRole = null;
+          advProposal.settlement = advProposal.settlement || {};
+          advProposal.settlement.type = advProposal.settlement.type || (advAmount === invAmount ? 'exact' : 'surplus');
+          advProposal.settlement.amount = advProposal.settlement.amount ?? Math.abs(advAmount - invAmount);
+          advProposal.settlement.diffAmount = advProposal.settlement.diffAmount ?? (advAmount - invAmount);
+          advProposal.settlement.advanceAmount = advAmount;
+          advProposal.settlement.invoiceAmount = invAmount;
+          advProposal.settlement.confirmedAt = new Date();
+          advProposal.settlement.confirmedBy = accountantId;
+
+          const finalStep = advProposal.approvalFlow.find(
+            s => s.role === 'ke_toan' && (s.step.includes('xác nhận') || s.step.includes('hoàn tất') || s.status === 'pending')
+          );
+          if (finalStep) {
+            finalStep.status = 'approved';
+            finalStep.approver = accountantId;
+            finalStep.comment = comment || 'Kế toán xác nhận hoàn tất hồ sơ (hóa đơn khớp đúng tiền tạm ứng)';
+            finalStep.date = new Date();
+          }
+          await advProposal.save();
+        }
+      } catch (advErr) {
+        console.error('Lỗi khi đồng bộ hoàn tất AdvanceProposal trong accountingConfirm:', advErr);
+      }
+    }
 
     await proposal.save();
     return await this.getById(proposalId);

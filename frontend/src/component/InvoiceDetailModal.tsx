@@ -43,12 +43,7 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
   }
   if (payment.invoiceInfo?.files && payment.invoiceInfo.files.length > 0) {
     payment.invoiceInfo.files.forEach((f: any) =>
-      allFiles.push({ ...f, tag: 'Hóa đơn VAT' })
-    );
-  }
-  if (payment.contractInfo?.files && payment.contractInfo.files.length > 0) {
-    payment.contractInfo.files.forEach((f: any) =>
-      allFiles.push({ ...f, tag: 'Hợp đồng kinh tế' })
+      allFiles.push({ ...f, tag: 'Hóa đơn / Chứng từ' })
     );
   }
 
@@ -196,43 +191,103 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
           </div>
         </div>
 
-        {/* Thông tin hóa đơn VAT / Hợp đồng kinh tế nếu có */}
-        {(payment.invoiceInfo?.invoiceNumber || payment.contractInfo?.contractNumber) && (
-          <div
-            style={{
-              padding: '0.9rem 1rem',
-              backgroundColor: 'rgba(16, 185, 129, 0.05)',
-              border: '1px solid rgba(16, 185, 129, 0.25)',
-              borderRadius: 'var(--radius-md)',
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-              gap: '0.75rem',
-              fontSize: '0.8rem',
-            }}
-          >
-            {payment.invoiceInfo?.invoiceNumber && (
-              <div>
-                <span style={{ color: 'var(--text-muted)' }}>Số Hóa Đơn VAT: </span>
-                <strong style={{ color: '#ffffff' }}>{payment.invoiceInfo.invoiceNumber}</strong>
-                {payment.invoiceInfo.invoiceDate && (
-                  <span style={{ color: 'var(--text-muted)', marginLeft: '0.4rem' }}>
-                    ({formatDate(payment.invoiceInfo.invoiceDate)})
-                  </span>
-                )}
-              </div>
-            )}
-            {payment.contractInfo?.contractNumber && (
-              <div>
-                <span style={{ color: 'var(--text-muted)' }}>Số Hợp Đồng: </span>
-                <strong style={{ color: '#ffffff' }}>{payment.contractInfo.contractNumber}</strong>
-                {payment.contractInfo.partnerName && (
-                  <span style={{ color: 'var(--text-muted)', marginLeft: '0.4rem' }}>
-                    ({payment.contractInfo.partnerName})
-                  </span>
-                )}
-              </div>
-            )}
+        {/* Thông tin trình hóa đơn: Ngày lập và Giá hóa đơn */}
+        <div
+          style={{
+            padding: '0.9rem 1rem',
+            backgroundColor: 'rgba(245, 158, 11, 0.06)',
+            border: '1px solid rgba(245, 158, 11, 0.25)',
+            borderRadius: 'var(--radius-md)',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+            gap: '0.75rem',
+            fontSize: '0.85rem',
+          }}
+        >
+          <div>
+            <span style={{ color: 'var(--text-muted)' }}>Ngày Hóa Đơn: </span>
+            <strong style={{ color: '#ffffff' }}>
+              {payment.invoiceInfo?.invoiceDate ? formatDate(payment.invoiceInfo.invoiceDate) : formatDate(payment.createdAt)}
+            </strong>
           </div>
+          <div>
+            <span style={{ color: 'var(--text-muted)' }}>Giá Hóa Đơn: </span>
+            <strong style={{ color: '#f59e0b' }} className="font-mono">
+              {formatCurrency(payment.invoiceInfo?.invoiceAmount || payment.amount)}
+            </strong>
+          </div>
+        </div>
+
+        {/* [QUY TRÌNH MỚI] Đơn tạm ứng hợp đồng đính kèm (nếu có - đối chiếu 2 chiều) */}
+        {(payment.advanceProposal || payment.purchaseProposal?.procurementExecution?.advanceProposalId || payment.purchaseProposal?.procurementExecution?.isAdvanced) && (
+          (() => {
+            const advObj = payment.advanceProposal || payment.purchaseProposal?.procurementExecution?.advanceProposalId;
+            const advId = typeof advObj === 'object' && advObj ? advObj._id : (typeof advObj === 'string' ? advObj : null);
+            const advCode = typeof advObj === 'object' && advObj ? advObj.proposalCode : (payment.purchaseProposal?.procurementExecution?.advanceNote || 'Đơn tạm ứng liên kết');
+            const advAmount = typeof advObj === 'object' && advObj ? advObj.totalAmount : (payment.purchaseProposal?.procurementExecution?.advanceAmount || 0);
+            const invAmount = payment.invoiceInfo?.invoiceAmount || payment.amount || 0;
+            // [CẬP NHẬT SỐ LIỆU] hoàn tạm ứng = số tiền tạm ứng hợp đồng - giá của hóa đơn
+            const diff = advAmount - invAmount;
+
+            return (
+              <div
+                style={{
+                  padding: '0.85rem 1rem',
+                  backgroundColor: 'rgba(234, 179, 8, 0.08)',
+                  border: '1px solid rgba(234, 179, 8, 0.25)',
+                  borderRadius: 'var(--radius-md)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: '0.65rem',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                  <CreditCard size={18} color="#eab308" />
+                  <div>
+                    <div style={{ fontSize: '0.825rem', fontWeight: 700, color: '#fef08a' }}>
+                      Đơn Tạm Ứng Hợp Đồng Kèm Theo: <span className="font-mono">{advCode}</span>
+                    </div>
+                    {advAmount > 0 && (
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.15rem' }}>
+                        Tạm ứng: <strong className="font-mono" style={{ color: 'var(--accent-cyan)' }}>{formatCurrency(advAmount)}</strong>
+                        {invAmount > 0 && (
+                          <span style={{ marginLeft: '0.65rem' }}>
+                            • Đối soát chênh lệch:{' '}
+                            <strong
+                              style={{
+                                color: diff > 0 ? '#f59e0b' : diff < 0 ? '#86efac' : 'var(--accent-cyan)',
+                              }}
+                            >
+                              {diff > 0
+                                ? `Thu mua hoàn tạm ứng: ${formatCurrency(diff)} (Dư)`
+                                : diff < 0
+                                ? `Công ty chuyển thêm: ${formatCurrency(Math.abs(diff))} (Thiếu)`
+                                : 'Khớp đúng 100%'}
+                            </strong>
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {advId && (
+                  <Link
+                    to={`/advance/${advId}`}
+                    target="_blank"
+                    className="btn btn-warning btn-sm"
+                    style={{ gap: '0.35rem', fontSize: '0.75rem', backgroundColor: '#f59e0b', color: '#000000', fontWeight: 600 }}
+                    title="Xem chi tiết đơn tạm ứng đính kèm"
+                  >
+                    <ExternalLink size={13} />
+                    <span>Xem Đơn Tạm Ứng (2 Chiều)</span>
+                  </Link>
+                )}
+              </div>
+            );
+          })()
         )}
 
         {/* Danh sách tệp / ảnh chứng từ hóa đơn đính kèm */}

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { advanceProposalService } from '../../services';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
+import { advanceProposalService, purchaseProposalService } from '../../services';
 import { formatCurrency } from '../../utils/formatters';
 import { useAuth } from '../../context/AuthContext';
 import {
@@ -12,6 +12,8 @@ import {
   AlertCircle,
   CreditCard,
   HelpCircle,
+  FileCheck,
+  Receipt,
 } from 'lucide-react';
 
 interface AdvanceFormItem {
@@ -22,7 +24,40 @@ interface AdvanceFormItem {
 
 export const CreateAdvancePage: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const purchaseProposalId = searchParams.get('purchaseProposalId');
+  const contractNumberParam = searchParams.get('contractNumber') || '';
+  const partnerNameParam = searchParams.get('partnerName') || '';
+  const contractAmountParam = searchParams.get('contractAmount') || '';
+  const invoiceDateParam = searchParams.get('invoiceDate') || '';
+  const invoiceAmountParam = searchParams.get('invoiceAmount') || '';
+
   const { user } = useAuth();
+
+  const [contractInfo, setContractInfo] = useState<{
+    contractNumber?: string;
+    partnerName?: string;
+    contractAmount?: number;
+    files?: any[];
+  } | null>(
+    contractNumberParam || partnerNameParam
+      ? {
+          contractNumber: contractNumberParam,
+          partnerName: partnerNameParam,
+          contractAmount: Number(contractAmountParam) || 0,
+        }
+      : null
+  );
+
+  // [QUY TRÌNH MỚI] Thông tin Hóa Đơn Thụ Hưởng gắn với Đơn Tạm Ứng
+  const [beneficiaryInvoice, setBeneficiaryInvoice] = useState<{
+    purchaseProposal?: string;
+    proposalCode?: string;
+    invoiceDate?: string;
+    invoiceAmount?: number;
+    files?: any[];
+    note?: string;
+  } | null>(null);
 
   const [items, setItems] = useState<AdvanceFormItem[]>([
     {
@@ -40,6 +75,54 @@ export const CreateAdvancePage: React.FC = () => {
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Tải thông tin đơn mua sắm & Hóa đơn / Hợp đồng nếu được chuyển hướng từ đơn mua sắm
+  useEffect(() => {
+    if (!purchaseProposalId) return;
+
+    purchaseProposalService
+      .getById(purchaseProposalId)
+      .then((proposal) => {
+        const execContract = proposal.procurementExecution?.contractInfo;
+        const cNum = contractNumberParam || execContract?.contractNumber || '';
+        const pName = partnerNameParam || execContract?.partnerName || '';
+        const cAmount = Number(contractAmountParam) || proposal.totalActualAmount || proposal.totalEstimatedAmount || 0;
+
+        if (cNum || pName) {
+          setContractInfo({
+            contractNumber: cNum,
+            partnerName: pName,
+            contractAmount: cAmount,
+            files: execContract?.files || [],
+          });
+        }
+
+        // [QUY TRÌNH MỚI] Thiết lập thông tin Hóa Đơn Thụ Hưởng
+        const execInvoice = proposal.procurementExecution?.invoiceInfo;
+        const invDate = invoiceDateParam || (execInvoice?.invoiceDate ? new Date(execInvoice.invoiceDate).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10));
+        const invAmount = Number(invoiceAmountParam) || execInvoice?.invoiceAmount || proposal.totalActualAmount || proposal.totalEstimatedAmount || 0;
+
+        setBeneficiaryInvoice({
+          purchaseProposal: proposal._id,
+          proposalCode: proposal.proposalCode,
+          invoiceDate: invDate,
+          invoiceAmount: invAmount,
+          files: execInvoice?.files || [],
+          note: `Đơn tạm ứng hợp đồng gắn với Hóa đơn mua hàng đơn ${proposal.proposalCode}`,
+        });
+
+        setItems([
+          {
+            id: '1',
+            mucDich: `Tạm ứng hợp đồng theo hóa đơn mua sắm đơn ${proposal.proposalCode}${invDate ? ` (Ngày HĐ: ${invDate})` : ''}`,
+            soTien: invAmount,
+          },
+        ]);
+      })
+      .catch((err) => {
+        console.error('Không thể tải thông tin đơn mua sắm liên kết:', err);
+      });
+  }, [purchaseProposalId, contractNumberParam, partnerNameParam, contractAmountParam, invoiceDateParam, invoiceAmountParam]);
 
   // Tự động điền tài khoản ngân hàng từ thông tin tài khoản người dùng
   useEffect(() => {
@@ -104,7 +187,7 @@ export const CreateAdvancePage: React.FC = () => {
 
     setSubmitting(true);
     try {
-      const payload = {
+      const payload: any = {
         bankAccount,
         items: items.map((item, index) => ({
           stt: index + 1,
@@ -112,6 +195,16 @@ export const CreateAdvancePage: React.FC = () => {
           soTien: Number(item.soTien),
         })),
       };
+
+      if (purchaseProposalId) {
+        payload.purchaseProposal = purchaseProposalId;
+      }
+      if (beneficiaryInvoice) {
+        payload.beneficiaryInvoice = beneficiaryInvoice;
+      }
+      if (contractInfo) {
+        payload.contractInfo = contractInfo;
+      }
 
       const result = await advanceProposalService.create(payload);
       navigate(`/advance/${result._id}`);
@@ -153,6 +246,97 @@ export const CreateAdvancePage: React.FC = () => {
         >
           <AlertCircle size={18} />
           <span>{error}</span>
+        </div>
+      )}
+
+      {/* [QUY TRÌNH MỚI] Banner thông tin Hóa Đơn Thụ Hưởng */}
+      {beneficiaryInvoice && (
+        <div
+          style={{
+            padding: '1rem 1.25rem',
+            backgroundColor: 'rgba(56, 189, 248, 0.08)',
+            border: '1px solid rgba(56, 189, 248, 0.3)',
+            borderRadius: 'var(--radius-md)',
+            marginBottom: '1.5rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '0.75rem',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+            <div
+              style={{
+                width: 34,
+                height: 34,
+                borderRadius: '8px',
+                backgroundColor: 'rgba(56, 189, 248, 0.15)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--accent-cyan)',
+              }}
+            >
+              <Receipt size={18} />
+            </div>
+            <div>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Đang lập đề xuất tạm ứng gắn với Hóa Đơn Thụ Hưởng:</span>
+              <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#ffffff', marginTop: '0.15rem' }}>
+                Đơn mua sắm: <strong className="font-mono" style={{ color: 'var(--accent-cyan)' }}>{beneficiaryInvoice.proposalCode}</strong>
+                {beneficiaryInvoice.invoiceDate && <span style={{ marginLeft: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem' }}>— Ngày HĐ: {beneficiaryInvoice.invoiceDate}</span>}
+                {beneficiaryInvoice.invoiceAmount ? <span style={{ marginLeft: '0.75rem', color: '#86efac', fontWeight: 600, fontSize: '0.85rem' }}>— Giá HĐ: {formatCurrency(beneficiaryInvoice.invoiceAmount)}</span> : null}
+              </div>
+            </div>
+          </div>
+          <span className="badge badge-info" style={{ fontSize: '0.75rem', padding: '0.35rem 0.65rem' }}>
+            Tạm Ứng Hợp Đồng
+          </span>
+        </div>
+      )}
+
+      {/* Banner thông tin Tạm ứng theo Hợp đồng kinh tế */}
+      {contractInfo?.contractNumber && (
+        <div
+          style={{
+            padding: '1rem 1.25rem',
+            backgroundColor: 'rgba(16, 185, 129, 0.08)',
+            border: '1px solid rgba(16, 185, 129, 0.3)',
+            borderRadius: 'var(--radius-md)',
+            marginBottom: '1.5rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '0.75rem',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+            <div
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: '6px',
+                backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--success)',
+              }}
+            >
+              <FileCheck size={18} />
+            </div>
+            <div>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Đang lập đề xuất tạm ứng theo Hợp Đồng Kinh Tế:</span>
+              <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#ffffff', marginTop: '0.15rem' }}>
+                Số HĐ: <strong className="font-mono" style={{ color: 'var(--success)' }}>{contractInfo.contractNumber}</strong>
+                {contractInfo.partnerName && <span> — Đối tác: {contractInfo.partnerName}</span>}
+              </div>
+            </div>
+          </div>
+          <span className="badge badge-success" style={{ fontSize: '0.75rem', padding: '0.35rem 0.65rem' }}>
+            Tạm Ứng Hợp Đồng
+          </span>
         </div>
       )}
 

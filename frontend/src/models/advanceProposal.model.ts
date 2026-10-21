@@ -21,6 +21,17 @@ export interface SettlementAttachment {
 export interface SettlementData {
   type: SettlementType;
   amount?: number | null;
+  invoiceAmount?: number | null;
+  advanceAmount?: number | null;
+  diffAmount?: number | null;
+  requestedBy?: User | { _id: string; fullName: string } | null;
+  requestedAt?: string | null;
+  accountantNote?: string;
+  purchaserConfirmed?: boolean;
+  purchaserConfirmType?: 'received_additional' | 'refunded_surplus' | 'exact_matched' | null;
+  purchaserConfirmProof?: Array<{ name: string; url: string; size?: number; type?: string }>;
+  purchaserNote?: string;
+  purchaserConfirmedAt?: string | null;
   attachments?: SettlementAttachment[];
   note?: string;
   submittedAt?: string | null;
@@ -62,6 +73,26 @@ export interface AdvanceProposal {
   rejectionReason?: string;
   // [LUỒNG MỚI] Liên kết với đề xuất mua sắm
   purchaseProposal?: any;
+  // [LUỒNG MỚI] Thông tin Hợp đồng kinh tế gắn với đợt tạm ứng (tạm ứng hợp đồng)
+  contractInfo?: {
+    contractNumber?: string;
+    partnerName?: string;
+    contractAmount?: number;
+    files?: Array<{ name: string; url: string; size?: number; type?: string }>;
+  };
+  // [LUỒNG MỚI] Thông tin Hóa đơn thụ hưởng gắn với đợt tạm ứng (tra cứu 2 chiều)
+  beneficiaryInvoice?: {
+    purchaseProposal?: any;
+    proposalCode?: string;
+    invoiceDate?: string | null;
+    invoiceAmount?: number;
+    files?: Array<{ name: string; url: string; size?: number; type?: string }>;
+    note?: string;
+    actualInvoiceDate?: string | null;
+    actualInvoiceAmount?: number | null;
+    actualInvoiceFiles?: Array<{ name: string; url: string; size?: number; type?: string }>;
+    actualSubmittedAt?: string | null;
+  };
   createdAt: string;
   updatedAt: string;
 }
@@ -75,11 +106,33 @@ export interface CreateAdvanceProposalDto {
   }>;
   // [LUỒNG MỚI] Liên kết với đề xuất mua sắm
   purchaseProposal?: string;
+  // [LUỒNG MỚI] Gắn thông tin hợp đồng tạm ứng
+  contractInfo?: {
+    contractNumber?: string;
+    partnerName?: string;
+    contractAmount?: number;
+    files?: Array<{ name: string; url: string; size?: number; type?: string }>;
+  };
+  // [LUỒNG MỚI] Gắn thông tin Hóa đơn thụ hưởng
+  beneficiaryInvoice?: {
+    purchaseProposal?: string;
+    proposalCode?: string;
+    invoiceDate?: string | null;
+    invoiceAmount?: number;
+    files?: Array<{ name: string; url: string; size?: number; type?: string }>;
+    note?: string;
+  };
 }
 
 export interface SubmitSettlementDto {
-  type: SettlementType;
+  type?: SettlementType;
   amount?: number;
+  actualInvoiceDate?: string;
+  actualInvoiceAmount?: number;
+  actualInvoiceFiles?: SettlementAttachment[];
+  purchaserConfirmType?: 'received_additional' | 'refunded_surplus' | 'exact_matched';
+  purchaserConfirmProof?: SettlementAttachment[];
+  purchaserNote?: string;
   attachments?: SettlementAttachment[];
   note?: string;
 }

@@ -111,6 +111,19 @@ class AdvanceProposalController {
     }
   }
 
+  async requestSettlement(req, res) {
+    try {
+      const proposal = await advanceProposalService.requestSettlement(
+        req.params.id,
+        req.user._id,
+        req.body
+      );
+      res.status(200).json({ success: true, data: proposal });
+    } catch (error) {
+      res.status(400).json({ success: false, message: error.message });
+    }
+  }
+
   async confirmSettlement(req, res) {
     try {
       const proposal = await advanceProposalService.confirmSettlement(

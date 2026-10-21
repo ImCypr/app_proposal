@@ -454,7 +454,10 @@ export const CreatePurchasePage: React.FC = () => {
                 {items.length} <span style={{ fontSize: '1rem', fontWeight: 500, color: 'var(--text-secondary)' }}>hạng mục</span>
               </div>
               <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.4rem', lineHeight: 1.4 }}>
-                ℹ️ Ước tính chi phí sẽ do bộ phận Thu mua thực hiện khảo sát 3-4 báo giá và trình Giám đốc sau khi Trưởng phòng duyệt yêu cầu.
+                {['truong_phong', 'giam_doc', 'chu_tich'].includes(user?.role || '')
+                  ? '⚡ Với vai trò quản lý, đơn của bạn sẽ được chuyển thẳng tới Thu mua để lập báo giá (bỏ qua bước Trưởng phòng duyệt).'
+                  : `ℹ️ Đơn sẽ được gửi đến Trưởng phòng trực tiếp${user?.directManager && typeof user.directManager === 'object' ? ` (${(user.directManager as any).fullName})` : ''} để duyệt. Sau đó Thu mua sẽ khảo sát 3-4 báo giá và trình Giám đốc.`
+                }
               </div>
             </div>
 
@@ -469,7 +472,7 @@ export const CreatePurchasePage: React.FC = () => {
                 style={{ padding: '0.75rem 1.5rem' }}
               >
                 <Save size={16} />
-                <span>{submitting ? 'Đang gửi...' : 'Gửi Yêu Cầu Lên Trưởng Phòng Duyệt'}</span>
+                <span>{submitting ? 'Đang gửi...' : (['truong_phong', 'giam_doc', 'chu_tich'].includes(user?.role || '') ? 'Gửi Yêu Cầu Lên Thu Mua' : 'Gửi Yêu Cầu Lên Trưởng Phòng Duyệt')}</span>
               </button>
             </div>
           </div>

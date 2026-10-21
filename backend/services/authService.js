@@ -25,7 +25,7 @@ class AuthService {
   }
 
   async login(email, password) {
-    const user = await User.findOne({ email }).select('+password').populate('department');
+    const user = await User.findOne({ email }).select('+password').populate('department').populate('directManager', 'fullName email role department');
     if (!user || !(await user.comparePassword(password))) {
       throw new Error('Email hoặc mật khẩu không đúng');
     }
@@ -47,7 +47,7 @@ class AuthService {
   }
 
   async getProfile(userId) {
-    const user = await User.findById(userId).populate('department');
+    const user = await User.findById(userId).populate('department').populate('directManager', 'fullName email role department');
     if (!user) throw new Error('Người dùng không tồn tại');
     return user;
   }
@@ -72,7 +72,31 @@ class AuthService {
   }
 
   async getAllUsers() {
-    return await User.find().populate('department').sort({ createdAt: -1 });
+    return await User.find().populate('department').populate('directManager', 'fullName email role department').sort({ createdAt: -1 });
+  }
+
+  /**
+   * Thiết lập hoặc xóa trưởng phòng trực tiếp (directManager) của một nhân viên.
+   * managerId = null để xóa liên kết (nhân viên sẽ sử dụng logic truong_phong phòng ban chung).
+   */
+  async setDirectManager(employeeId, managerId) {
+    const employee = await User.findById(employeeId);
+    if (!employee) throw new Error('Nhân viên không tồn tại');
+
+    if (managerId) {
+      const manager = await User.findById(managerId);
+      if (!manager) throw new Error('Trưởng phòng không tồn tại');
+      if (!['truong_phong', 'giam_doc', 'chu_tich'].includes(manager.role)) {
+        throw new Error('Người được chọn làm trưởng phòng trực tiếp phải có vai trò quản lý (truong_phong / giam_doc / chu_tich)');
+      }
+    }
+
+    employee.directManager = managerId || null;
+    await employee.save();
+
+    return await User.findById(employeeId)
+      .populate('department')
+      .populate('directManager', 'fullName email role department');
   }
 }
 

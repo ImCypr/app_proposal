@@ -22,6 +22,14 @@ export interface User {
     name: string;
     description?: string;
   } | string;
+  // Trưởng phòng trực tiếp của nhân viên này (nếu có).
+  // Khi thiết lập, đơn mua sắm của nhân viên sẽ yêu cầu người này duyệt trước.
+  directManager?: {
+    _id: string;
+    fullName: string;
+    email: string;
+    role: Role;
+  } | string | null;
   bankAccount?: BankAccount;
   avatar?: string;
   isActive?: boolean;

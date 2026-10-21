@@ -224,9 +224,18 @@ export const PaymentDetailPage: React.FC = () => {
 
   const purchaseProposal = typeof proposal.purchaseProposal === 'object' ? proposal.purchaseProposal : null;
   const execution = (purchaseProposal as any)?.procurementExecution;
-  const isAdv = Boolean(execution?.isAdvanced);
-  const advAmount = Number(execution?.advanceAmount) || 0;
-  const advNote = execution?.advanceNote || '';
+  const advObj = (proposal as any).advanceProposal || execution?.advanceProposalId;
+  const isAdv = Boolean(execution?.isAdvanced || execution?.advanceProposalId || (proposal as any).advanceProposal);
+  const advAmount = Number(
+    typeof advObj === 'object' && advObj
+      ? (advObj.totalDisbursed > 0 ? advObj.totalDisbursed : advObj.totalAmount)
+      : execution?.advanceAmount || 0
+  );
+  const advNote = execution?.advanceNote || (typeof advObj === 'object' && advObj ? advObj.proposalCode : '');
+  const invoiceInfo = proposal.invoiceInfo || execution?.invoiceInfo;
+  const invoiceAmount = Number(invoiceInfo?.invoiceAmount || proposal.amount) || 0;
+  // [CẬP NHẬT SỐ LIỆU] hoàn tạm ứng = số tiền tạm ứng hợp đồng - giá của hóa đơn
+  const advanceDiff = advAmount - invoiceAmount;
 
   return (
     <div>
@@ -517,14 +526,25 @@ export const PaymentDetailPage: React.FC = () => {
               </div>
             </div>
 
-            {/* [QUY TRÌNH MỚI] Thông báo đơn đã đối trừ khoản tiền Thu mua nhận tạm ứng độc lập */}
+            {/* [QUY TRÌNH MỚI] Thông báo đối soát hoàn tạm ứng hợp đồng */}
             {isAdv && advAmount > 0 && (
               <div
                 style={{
                   marginTop: '1.25rem',
-                  padding: '0.85rem 1.15rem',
-                  backgroundColor: 'rgba(245, 158, 11, 0.08)',
-                  border: '1px solid rgba(245, 158, 11, 0.3)',
+                  padding: '0.9rem 1.25rem',
+                  backgroundColor:
+                    advanceDiff > 0
+                      ? 'rgba(245, 158, 11, 0.08)'
+                      : advanceDiff < 0
+                      ? 'rgba(16, 185, 129, 0.08)'
+                      : 'rgba(56, 189, 248, 0.08)',
+                  border: `1px solid ${
+                    advanceDiff > 0
+                      ? 'rgba(245, 158, 11, 0.35)'
+                      : advanceDiff < 0
+                      ? 'rgba(16, 185, 129, 0.35)'
+                      : 'rgba(56, 189, 248, 0.35)'
+                  }`,
                   borderRadius: 'var(--radius-md)',
                   display: 'flex',
                   alignItems: 'center',
@@ -534,15 +554,36 @@ export const PaymentDetailPage: React.FC = () => {
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                  <AlertCircle size={18} color="#f59e0b" />
-                  <span style={{ fontSize: '0.85rem', color: '#fbbf24' }}>
-                    <strong>Đơn hàng đã được đối trừ tạm ứng:</strong> Thu mua đã nhận tạm ứng trước{' '}
-                    <strong className="font-mono">{formatCurrency(advAmount)}</strong>
-                    {advNote ? ` (${advNote})` : ''}. Số tiền đề xuất thanh toán ở trên là phần còn thiếu cần chi trả thực tế.
+                  <AlertCircle size={18} color={advanceDiff > 0 ? '#f59e0b' : advanceDiff < 0 ? '#10b981' : 'var(--accent-cyan)'} />
+                  <span style={{ fontSize: '0.85rem', color: '#ffffff', lineHeight: 1.5 }}>
+                    <strong>Đối soát hoàn tạm ứng (Hoàn tạm ứng = Tạm ứng - Giá hóa đơn):</strong>{' '}
+                    Đã tạm ứng: <strong className="font-mono" style={{ color: 'var(--accent-cyan)' }}>{formatCurrency(advAmount)}</strong>
+                    {advNote ? ` (${advNote})` : ''} • Giá của hóa đơn:{' '}
+                    <strong className="font-mono" style={{ color: '#f59e0b' }}>{formatCurrency(invoiceAmount)}</strong>.{' '}
+                    {advanceDiff < 0 && (
+                      <span style={{ color: '#86efac', display: 'inline-block', marginTop: '0.2rem' }}>
+                        Tạm ứng thiếu: Công ty sẽ chuyển thêm{' '}
+                        <strong className="font-mono">{formatCurrency(Math.abs(advanceDiff))}</strong> cho Thu mua.
+                      </span>
+                    )}
+                    {advanceDiff > 0 && (
+                      <span style={{ color: '#fef08a', display: 'inline-block', marginTop: '0.2rem' }}>
+                        Tạm ứng dư: Yêu cầu Thu mua hoàn tạm ứng nộp lại{' '}
+                        <strong className="font-mono">{formatCurrency(advanceDiff)}</strong> vào quỹ công ty.
+                      </span>
+                    )}
+                    {advanceDiff === 0 && (
+                      <span style={{ color: 'var(--accent-cyan)', display: 'inline-block', marginTop: '0.2rem' }}>
+                        Khớp đúng 100% số tiền tạm ứng và giá hóa đơn.
+                      </span>
+                    )}
                   </span>
                 </div>
-                <span className="badge badge-warning" style={{ fontSize: '0.75rem', fontWeight: 600 }}>
-                  Đã tạm ứng: {formatCurrency(advAmount)}
+                <span
+                  className={`badge ${advanceDiff > 0 ? 'badge-warning' : advanceDiff < 0 ? 'badge-success' : 'badge-info'}`}
+                  style={{ fontSize: '0.75rem', fontWeight: 600, padding: '0.35rem 0.65rem' }}
+                >
+                  {advanceDiff > 0 ? `Dư hoàn lại: ${formatCurrency(advanceDiff)}` : advanceDiff < 0 ? `Thiếu chuyển bù: ${formatCurrency(Math.abs(advanceDiff))}` : 'Khớp đúng 100%'}
                 </span>
               </div>
             )}
@@ -767,100 +808,8 @@ export const PaymentDetailPage: React.FC = () => {
             );
           })()}
 
-          {/* [LUỒNG MỚI] 3. THẺ HỢP ĐỒNG KINH TẾ */}
-          {(() => {
-            const contractData = proposal.contractInfo || (purchaseProposal as any)?.procurementExecution?.contractInfo;
-            const contractFiles = (proposal.contractAttachments && proposal.contractAttachments.length > 0)
-              ? proposal.contractAttachments
-              : (contractData?.files || []);
-
-            if (!contractData?.contractNumber && !contractData?.partnerName && contractFiles.length === 0) {
-              return null;
-            }
-
-            return (
-              <div className="card" style={{ padding: '1.5rem', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
-                  <FileCheck size={18} color="var(--success)" />
-                  <h3 style={{ fontSize: '1.05rem', color: '#ffffff' }}>
-                    Hợp Đồng Kinh Tế
-                  </h3>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', marginBottom: contractFiles.length > 0 ? '1rem' : 0 }}>
-                  {contractData?.contractNumber && (
-                    <div>
-                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.2rem' }}>
-                        Số Hiệu Hợp Đồng
-                      </div>
-                      <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#ffffff' }} className="font-mono">
-                        {contractData.contractNumber}
-                      </div>
-                    </div>
-                  )}
-                  {contractData?.partnerName && (
-                    <div>
-                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.2rem' }}>
-                        Đối Tác Ký Kết
-                      </div>
-                      <div style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                        {contractData.partnerName}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {contractFiles.length > 0 && (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: '0.75rem', marginTop: '0.5rem' }}>
-                    {contractFiles.map((cFile: any, cIdx: number) => (
-                      <div
-                        key={cIdx}
-                        style={{
-                          padding: '0.75rem 1rem',
-                          backgroundColor: 'rgba(255, 255, 255, 0.02)',
-                          border: '1px solid var(--border-color)',
-                          borderRadius: 'var(--radius-md)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', overflow: 'hidden' }}>
-                          <FileCheck size={16} color="var(--success)" />
-                          <span
-                            style={{ fontSize: '0.8rem', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', maxWidth: '130px' }}
-                            title={cFile.name}
-                          >
-                            {cFile.name}
-                          </span>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                          <button
-                            type="button"
-                            onClick={() => handlePreviewFile(cFile, contractFiles, cIdx)}
-                            className="btn btn-ghost btn-sm"
-                            style={{ padding: '0.3rem', color: 'var(--success)' }}
-                            title="Xem hợp đồng"
-                          >
-                            <Eye size={14} />
-                          </button>
-                          <a
-                            href={cFile.url}
-                            download={cFile.name}
-                            className="btn btn-ghost btn-sm"
-                            style={{ padding: '0.3rem' }}
-                            title="Tải về"
-                          >
-                            <Download size={14} />
-                          </a>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })()}
+          {/* [LUỒNG MỚI] 3. THẺ HỢP ĐỒNG KINH TẾ (Đã loại bỏ khỏi luồng thanh toán theo yêu cầu) */}
+          {null}
 
           {/* [LUỒNG MỚI] 4. THẺ HÓA ĐƠN VAT / CHỨNG TỪ BÊN THU MUA CUNG CẤP */}
           {(() => {
@@ -869,40 +818,32 @@ export const PaymentDetailPage: React.FC = () => {
               ? invoiceData.files
               : [];
 
-            if (!invoiceData?.invoiceNumber && !invoiceData?.invoiceDate && invoiceFiles.length === 0) {
-              return null;
-            }
-
             return (
               <div className="card" style={{ padding: '1.5rem', border: '1px solid rgba(245, 158, 11, 0.25)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
                   <Receipt size={18} color="#f59e0b" />
                   <h3 style={{ fontSize: '1.05rem', color: '#ffffff' }}>
-                    Hóa Đơn VAT & Chứng Từ Bên Thu Mua
+                    Hồ Sơ Trình Hóa Đơn / Chứng Từ Thu Mua
                   </h3>
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', marginBottom: invoiceFiles.length > 0 ? '1rem' : 0 }}>
-                  {invoiceData?.invoiceNumber && (
-                    <div>
-                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.2rem' }}>
-                        Số Hóa Đơn VAT
-                      </div>
-                      <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#f59e0b' }} className="font-mono">
-                        {invoiceData.invoiceNumber}
-                      </div>
+                  <div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.2rem' }}>
+                      Giá Của Hóa Đơn
                     </div>
-                  )}
-                  {invoiceData?.invoiceDate && (
-                    <div>
-                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.2rem' }}>
-                        Ngày Lập Hóa Đơn
-                      </div>
-                      <div style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                        {formatDate(invoiceData.invoiceDate)}
-                      </div>
+                    <div style={{ fontSize: '1.05rem', fontWeight: 700, color: '#f59e0b' }} className="font-mono">
+                      {formatCurrency(invoiceData?.invoiceAmount || proposal.amount)}
                     </div>
-                  )}
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.2rem' }}>
+                      Ngày Lập Hóa Đơn
+                    </div>
+                    <div style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                      {formatDate(invoiceData?.invoiceDate || proposal.createdAt)}
+                    </div>
+                  </div>
                 </div>
 
                 {invoiceFiles.length > 0 && (
@@ -953,6 +894,93 @@ export const PaymentDetailPage: React.FC = () => {
                     ))}
                   </div>
                 )}
+              </div>
+            );
+          })()}
+
+          {/* [LUỒNG MỚI] 5. THẺ ĐƠN TẠM ỨNG HỢP ĐỒNG ĐÍNH KÈM (Đối chiếu 2 chiều & Đối soát tiền) */}
+          {(() => {
+            const advObj = (proposal as any).advanceProposal || (purchaseProposal as any)?.procurementExecution?.advanceProposalId;
+            const advId = typeof advObj === 'object' && advObj ? advObj._id : (typeof advObj === 'string' ? advObj : null);
+            const advCode = typeof advObj === 'object' && advObj ? advObj.proposalCode : ((purchaseProposal as any)?.procurementExecution?.advanceNote || 'Đơn tạm ứng liên kết');
+            const advAmount = typeof advObj === 'object' && advObj ? (advObj.totalDisbursed > 0 ? advObj.totalDisbursed : advObj.totalAmount) : ((purchaseProposal as any)?.procurementExecution?.advanceAmount || 0);
+            
+            const currentInvoiceData = proposal.invoiceInfo || (purchaseProposal as any)?.procurementExecution?.invoiceInfo;
+            const invAmount = Number(currentInvoiceData?.invoiceAmount || proposal.amount) || 0;
+            // [CẬP NHẬT SỐ LIỆU] hoàn tạm ứng = số tiền tạm ứng hợp đồng - giá của hóa đơn
+            const diff = advAmount - invAmount;
+
+            if (!advObj && !((purchaseProposal as any)?.procurementExecution?.isAdvanced)) return null;
+
+            return (
+              <div
+                className="card"
+                style={{
+                  padding: '1.25rem 1.5rem',
+                  border: '1px solid rgba(245, 158, 11, 0.35)',
+                  backgroundColor: 'rgba(245, 158, 11, 0.05)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                    <div
+                      style={{
+                        width: 36,
+                        height: 36,
+                        borderRadius: '8px',
+                        backgroundColor: 'rgba(245, 158, 11, 0.15)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#f59e0b',
+                      }}
+                    >
+                      <CreditCard size={18} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                        Đơn tạm ứng hợp đồng kèm theo (Hoàn tạm ứng = Tạm ứng - Giá hóa đơn):
+                      </div>
+                      <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#ffffff', marginTop: '0.15rem' }}>
+                        Mã đơn: <strong className="font-mono" style={{ color: '#fef08a' }}>{advCode}</strong>
+                        {advAmount > 0 && (
+                          <span style={{ marginLeft: '0.75rem', color: 'var(--accent-cyan)', fontWeight: 600 }}>
+                            — Tạm ứng: {formatCurrency(advAmount)}
+                          </span>
+                        )}
+                        {advAmount > 0 && invAmount > 0 && (
+                          <span style={{ marginLeft: '0.75rem' }}>
+                            • Đối soát:{' '}
+                            <strong
+                              style={{
+                                color: diff > 0 ? '#f59e0b' : diff < 0 ? '#86efac' : 'var(--accent-cyan)',
+                              }}
+                            >
+                              {diff > 0
+                                ? `Thu mua hoàn tạm ứng ${formatCurrency(diff)} (Dư)`
+                                : diff < 0
+                                ? `Công ty chuyển thêm ${formatCurrency(Math.abs(diff))} (Thiếu)`
+                                : 'Khớp đúng 100%'}
+                            </strong>
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {advId && (
+                    <Link
+                      to={`/advance/${advId}`}
+                      target="_blank"
+                      className="btn btn-warning btn-sm"
+                      style={{ gap: '0.35rem', backgroundColor: '#f59e0b', color: '#000000', fontWeight: 700 }}
+                      title="Mở xem chi tiết đơn tạm ứng này trên tab mới"
+                    >
+                      <ExternalLink size={13} />
+                      <span>Xem Đơn Tạm Ứng (2 Chiều)</span>
+                    </Link>
+                  )}
+                </div>
               </div>
             );
           })()}

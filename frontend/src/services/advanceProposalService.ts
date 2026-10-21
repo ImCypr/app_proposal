@@ -47,6 +47,23 @@ export const advanceProposalService = {
     return res.data.data;
   },
 
+  requestSettlement: async (
+    id: string,
+    data: {
+      diffAmount?: number;
+      note?: string;
+      actualInvoiceDate?: string;
+      actualInvoiceAmount?: number;
+      actualInvoiceFiles?: any[];
+    }
+  ): Promise<AdvanceProposal> => {
+    const res = await api.put<{ success: boolean; data: AdvanceProposal }>(
+      `/advance-proposals/${id}/request-settlement`,
+      data
+    );
+    return res.data.data;
+  },
+
   submitSettlement: async (
     id: string,
     data: SubmitSettlementDto

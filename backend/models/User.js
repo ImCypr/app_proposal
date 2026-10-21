@@ -25,6 +25,13 @@ const userSchema = new mongoose.Schema({
     enum: ['nhan_vien', 'truong_phong', 'thu_mua', 'ke_toan', 'giam_doc', 'chu_tich'],
     default: 'nhan_vien',
   },
+  // Trưởng phòng trực tiếp của nhân viên này (nếu có).
+  // Nếu được thiết lập, đơn mua sắm của nhân viên sẽ đi qua người này thay vì qua role truong_phong chung.
+  directManager: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null,
+  },
   department: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Department',

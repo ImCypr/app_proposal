@@ -118,7 +118,8 @@ export const CreatePaymentPage: React.FC = () => {
     contractAttachments: [] as Array<{ name: string; url: string; size?: number; type?: string }>,
     invoiceInfo: {
       invoiceNumber: '',
-      invoiceDate: '',
+      invoiceDate: new Date().toISOString().slice(0, 10),
+      invoiceAmount: 0,
       files: [] as Array<{ name: string; url: string; size?: number; type?: string }>,
     },
   });
@@ -192,22 +193,20 @@ export const CreatePaymentPage: React.FC = () => {
     // 3. Tự động gắn Bảng báo giá đối tác
     addFilesWithPrefix(quotationFiles, '[Bảng báo giá]');
 
-    // Định dạng ngày hóa đơn cho input date
-    let formattedInvoiceDate = '';
+    // Định dạng ngày hóa đơn cho input date (mặc định là ngày làm hiện tại)
+    let formattedInvoiceDate = new Date().toISOString().slice(0, 10);
     if (executionInvoice.invoiceDate) {
       try {
         formattedInvoiceDate = new Date(executionInvoice.invoiceDate).toISOString().slice(0, 10);
       } catch (e) {
-        formattedInvoiceDate = '';
+        formattedInvoiceDate = new Date().toISOString().slice(0, 10);
       }
     }
 
-    // Tự động điền nội dung thanh toán thông minh theo số hóa đơn / số hợp đồng
-    let smartReason = `Thanh toán chi phí mua sắm vật tư cho đơn ${proposal.proposalCode}`;
-    if (executionInvoice.invoiceNumber) {
-      smartReason = `Thanh toán chi phí mua sắm theo Hóa đơn số ${executionInvoice.invoiceNumber} cho đơn ${proposal.proposalCode}`;
-    } else if (executionContract.contractNumber) {
-      smartReason = `Thanh toán chi phí mua sắm theo Hợp đồng số ${executionContract.contractNumber} cho đơn ${proposal.proposalCode}`;
+    // Tự động điền nội dung thanh toán thông minh theo ngày hóa đơn
+    let smartReason = `Thanh toán chi phí mua sắm vật tư theo hóa đơn cho đơn ${proposal.proposalCode}`;
+    if (formattedInvoiceDate) {
+      smartReason = `Thanh toán chi phí mua sắm theo hóa đơn ngày ${formattedInvoiceDate} cho đơn ${proposal.proposalCode}`;
     }
 
     // [QUY TRÌNH MỚI] Kiểm tra khoản Thu mua đã xác nhận tạm ứng độc lập để tự động đối trừ
@@ -243,8 +242,9 @@ export const CreatePaymentPage: React.FC = () => {
       },
       contractAttachments: contractFiles,
       invoiceInfo: {
-        invoiceNumber: executionInvoice.invoiceNumber || '',
+        invoiceNumber: '',
         invoiceDate: formattedInvoiceDate,
+        invoiceAmount: defaultAmount,
         files: invoiceFiles,
       },
       attachments: autoAttachments,
@@ -523,13 +523,12 @@ export const CreatePaymentPage: React.FC = () => {
         attachments: serverAttachments,
         items: form.items,
         quotationAttachments: serverQuotes,
-        contractInfo: {
-          ...form.contractInfo,
-          files: serverContractFiles,
-        },
-        contractAttachments: serverContractFiles,
+        contractInfo: undefined,
+        contractAttachments: [],
         invoiceInfo: {
           ...form.invoiceInfo,
+          invoiceDate: form.invoiceInfo.invoiceDate || new Date().toISOString().slice(0, 10),
+          invoiceAmount: Number(form.invoiceInfo.invoiceAmount) || form.amount,
           files: serverInvoiceFiles,
         },
       });
@@ -1082,127 +1081,13 @@ export const CreatePaymentPage: React.FC = () => {
               )}
             </div>
 
-            {/* 3. HỢP ĐỒNG KINH TẾ & HỒ SƠ MUA SẮM */}
+            {/* [LUỒNG MỚI] 3. TRÌNH HÓA ĐƠN / CHỨNG TỪ BÊN THU MUA CUNG CẤP */}
             <div style={{ padding: '1.25rem', backgroundColor: 'rgba(255, 255, 255, 0.02)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                  <FileCheck size={17} color="var(--success)" />
-                  <h4 style={{ fontSize: '0.95rem', color: '#ffffff', fontWeight: 600 }}>
-                    3. Hợp Đồng Kinh Tế & Hồ Sơ Ký Kết ({(form.contractInfo.files || []).length} tệp)
-                  </h4>
-                </div>
-                <label
-                  className={`btn btn-secondary btn-sm ${contractUploading ? 'disabled' : ''}`}
-                  style={{ cursor: contractUploading ? 'not-allowed' : 'pointer', fontSize: '0.75rem', gap: '0.35rem' }}
-                >
-                  {contractUploading ? <Loader2 size={13} className="animate-spin" /> : <UploadCloud size={13} />}
-                  <span>{contractUploading ? 'Đang tải lên...' : 'Tải thêm tệp hợp đồng'}</span>
-                  <input
-                    type="file"
-                    multiple
-                    disabled={contractUploading}
-                    accept=".pdf,.png,.jpg,.jpeg,.webp,.docx,.doc"
-                    style={{ display: 'none' }}
-                    onChange={handleContractUpload}
-                  />
-                </label>
-              </div>
-
-              {/* Thông tin số hợp đồng & bên ký */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', marginBottom: '0.85rem' }}>
-                <div>
-                  <label className="form-label" style={{ fontSize: '0.75rem' }}>Số Hiệu Hợp Đồng:</label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    style={{ fontSize: '0.825rem' }}
-                    placeholder="VD: HĐ-2026/PROFLOW-01"
-                    value={form.contractInfo.contractNumber || ''}
-                    onChange={(e) =>
-                      setForm((prev) => ({
-                        ...prev,
-                        contractInfo: { ...prev.contractInfo, contractNumber: e.target.value },
-                      }))
-                    }
-                  />
-                </div>
-                <div>
-                  <label className="form-label" style={{ fontSize: '0.75rem' }}>Tên Đối Tác Ký Hợp Đồng:</label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    style={{ fontSize: '0.825rem' }}
-                    placeholder="VD: Công ty TNHH Thiết bị Văn phòng..."
-                    value={form.contractInfo.partnerName || ''}
-                    onChange={(e) =>
-                      setForm((prev) => ({
-                        ...prev,
-                        contractInfo: { ...prev.contractInfo, partnerName: e.target.value },
-                      }))
-                    }
-                  />
-                </div>
-              </div>
-
-              {/* Danh sách tệp hợp đồng */}
-              {(form.contractInfo.files || []).length === 0 ? (
-                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic', padding: '0.5rem 0' }}>
-                  Chưa có tệp văn bản hợp đồng đính kèm. Kế toán có thể bấm "Tải thêm tệp hợp đồng" ở trên nếu có bản scan hợp đồng kinh tế.
-                </div>
-              ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '0.65rem' }}>
-                  {(form.contractInfo.files || []).map((file, cIdx) => (
-                    <div
-                      key={cIdx}
-                      style={{
-                        padding: '0.6rem 0.85rem',
-                        backgroundColor: 'rgba(255, 255, 255, 0.03)',
-                        borderRadius: 'var(--radius-sm)',
-                        border: '1px solid var(--border-color)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', overflow: 'hidden' }}>
-                        <FileCheck size={15} color="var(--success)" />
-                        <span style={{ fontSize: '0.775rem', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', maxWidth: '140px' }} title={file.name}>
-                          {file.name}
-                        </span>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                        <button
-                          type="button"
-                          onClick={() => handlePreviewFile(file, form.contractInfo.files, cIdx)}
-                          className="btn btn-ghost btn-sm"
-                          style={{ padding: '0.25rem', color: 'var(--success)' }}
-                          title="Xem hợp đồng"
-                        >
-                          <Eye size={13} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveContractFile(cIdx)}
-                          className="btn btn-ghost btn-sm"
-                          style={{ color: 'var(--danger)', padding: '0.25rem' }}
-                          title="Xóa"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* [LUỒNG MỚI] 4. HÓA ĐƠN VAT / CHỨNG TỪ BÊN THU MUA CUNG CẤP */}
-            <div style={{ marginTop: '1.75rem', padding: '1.25rem', backgroundColor: 'rgba(255, 255, 255, 0.02)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem', flexWrap: 'wrap', gap: '0.5rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
                   <Receipt size={17} color="#f59e0b" />
                   <h4 style={{ fontSize: '0.95rem', color: '#ffffff', fontWeight: 600 }}>
-                    4. Hóa Đơn VAT / Chứng Từ Thu Mua ({(form.invoiceInfo.files || []).length} tệp)
+                    3. Trình Hóa Đơn / Chứng Từ Thu Mua ({(form.invoiceInfo.files || []).length} tệp)
                   </h4>
                 </div>
                 <label
@@ -1222,31 +1107,15 @@ export const CreatePaymentPage: React.FC = () => {
                 </label>
               </div>
 
-              {/* Thông tin số hóa đơn & ngày hóa đơn */}
+              {/* Thông tin ngày hóa đơn & giá của hóa đơn */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', marginBottom: '0.85rem' }}>
-                <div>
-                  <label className="form-label" style={{ fontSize: '0.75rem' }}>Số Hóa Đơn VAT:</label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    style={{ fontSize: '0.825rem' }}
-                    placeholder="VD: HD-001289"
-                    value={form.invoiceInfo.invoiceNumber || ''}
-                    onChange={(e) =>
-                      setForm((prev) => ({
-                        ...prev,
-                        invoiceInfo: { ...prev.invoiceInfo, invoiceNumber: e.target.value },
-                      }))
-                    }
-                  />
-                </div>
                 <div>
                   <label className="form-label" style={{ fontSize: '0.75rem' }}>Ngày Lập Hóa Đơn:</label>
                   <input
                     type="date"
                     className="form-input"
                     style={{ fontSize: '0.825rem' }}
-                    value={form.invoiceInfo.invoiceDate || ''}
+                    value={form.invoiceInfo.invoiceDate || new Date().toISOString().slice(0, 10)}
                     onChange={(e) =>
                       setForm((prev) => ({
                         ...prev,
@@ -1254,6 +1123,32 @@ export const CreatePaymentPage: React.FC = () => {
                       }))
                     }
                   />
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.2rem', display: 'block' }}>
+                    Mặc định là ngày hôm làm đề xuất, có thể thay đổi
+                  </span>
+                </div>
+                <div>
+                  <label className="form-label" style={{ fontSize: '0.75rem' }}>Giá Của Hóa Đơn (VNĐ):</label>
+                  <input
+                    type="number"
+                    className="form-input"
+                    style={{ fontSize: '0.825rem' }}
+                    placeholder="VD: 10500000"
+                    value={form.invoiceInfo.invoiceAmount !== undefined && form.invoiceInfo.invoiceAmount !== null ? form.invoiceInfo.invoiceAmount : (form.amount || '')}
+                    onChange={(e) => {
+                      const val = Number(e.target.value) || 0;
+                      setForm((prev) => ({
+                        ...prev,
+                        amount: val,
+                        invoiceInfo: { ...prev.invoiceInfo, invoiceAmount: val },
+                      }));
+                    }}
+                  />
+                  {Boolean(form.invoiceInfo.invoiceAmount || form.amount) && (
+                    <span style={{ fontSize: '0.7rem', color: '#f59e0b', marginTop: '0.2rem', display: 'block' }}>
+                      {formatCurrency(form.invoiceInfo.invoiceAmount || form.amount)}
+                    </span>
+                  )}
                 </div>
               </div>
 

@@ -105,6 +105,7 @@ const purchaseProposalSchema = new mongoose.Schema({
     invoiceInfo: {
       invoiceNumber: { type: String, default: '' },
       invoiceDate:   { type: Date, default: null },
+      invoiceAmount: { type: Number, default: 0 },
       files: [mongoose.Schema.Types.Mixed],
     },
     // Thông tin hợp đồng kinh tế
